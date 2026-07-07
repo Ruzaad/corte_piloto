@@ -97,6 +97,7 @@ input, select, button, textarea { font-family: inherit; }
   border-radius: var(--radius-sm);
   font-size: 15px; color: var(--text);
   outline: none; transition: border-color .15s;
+  appearance: none;
   -webkit-appearance: none;
 }
 .field select:focus, .field input:focus { border-color: var(--blue-hover); }
