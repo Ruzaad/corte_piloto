@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0D3B85">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Samitex">
+<title>Samitex · Planta</title>
+
+<style>
+/* ── TOKENS ─────────────────────────────────────────────── */
+:root {
+  --blue:        #0D3B85;
+  --blue-hover:  #1A56B4;
+  --gold:        #D49D53;
+  --gold-dim:    #b8832f;
+  --bg:          #FAFAFA;
+  --bg-card:     #F0F2F5;
+  --bg-card2:    #FFFFFF;
+  --text:        #212529;
+  --text-muted:  #6B7280;
+  --text-faint:  #9CA3AF;
+  --border:      #E2E5EA;
+  --green:       #166534;
+  --green-bg:    #DCFCE7;
+  --red:         #991B1B;
+  --red-bg:      #FEE2E2;
+  --yellow:      #92400E;
+  --yellow-bg:   #FEF3C7;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:   0 4px 12px rgba(0,0,0,0.10);
+  --radius:      12px;
+  --radius-sm:   8px;
+}
+
+[data-theme="dark"] {
+  --bg:          #0D1117;
+  --bg-card:     #161B22;
+  --bg-card2:    #1C2333;
+  --text:        #E6EDF3;
+  --text-muted:  #8B949E;
+  --text-faint:  #484F58;
+  --border:      #30363D;
+  --green:       #3FB950;
+  --green-bg:    #0D2A17;
+  --red:         #F85149;
+  --red-bg:      #2D1117;
+  --yellow:      #D29922;
+  --yellow-bg:   #2D2010;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md:   0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* ── RESET ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { height: 100%; }
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+  overflow-x: hidden;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ── LOGIN ───────────────────────────────────────────────── */
+#loginScreen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--blue);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 40px,
+    rgba(255,255,255,0.02) 40px,
+    rgba(255,255,255,0.02) 80px
+  );
+}
+.login-mark {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.login-logo {
+  font-size: 36px;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: -1px;
+  margin-bottom: 4px;
+}
+.login-tagline {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 48px;
+}
+.login-card {
+  background: var(--bg-card2);
+  border-radius: 20px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+}
+.login-card h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.field select, .field input {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+.field select:focus, .field input:focus { border-color: var(--blue-hover); }
+
+/* ── BUTTONS ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn-full { width: 100%; }
+.btn-primary { background: var(--blue); color: #FFF; }
+.btn-primary:hover:not(:disabled) { background: var(--blue-hover); }
+.btn-accent { background: var(--gold); color: #FFF; }
+.btn-accent:hover:not(:disabled) { background: var(--gold-dim); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--blue-hover); color: var(--blue-hover); }
+.btn-danger { background: var(--red-bg); color: var(--red); }
+
+/* ── APP SHELL ───────────────────────────────────────────── */
+#appShell { display: none; min-height: 100vh; flex-direction: column; }
+#appShell.visible { display: flex; }
+
+.topbar {
+  background: var(--blue);
+  padding: 0 16px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  flex-shrink: 0;
+}
+.topbar-brand { font-size: 16px; font-weight: 800; color: #FFF; letter-spacing: 0.5px; }
+.topbar-brand span { color: var(--gold); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-area {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.1);
+  padding: 5px 10px;
+  border-radius: 20px;
+}
+.btn-theme {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #FFF;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.btn-theme:hover { background: rgba(255,255,255,0.2); }
+
+/* ── SYNC BAR ────────────────────────────────────────────── */
+.syncbar {
+  display: none;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  padding: 5px 16px;
+  letter-spacing: 0.3px;
+}
+.syncbar.pending  { display: block; background: var(--yellow-bg); color: var(--yellow); }
+.syncbar.syncing  { display: block; background: var(--blue); color: rgba(255,255,255,0.9); }
+.syncbar.error    { display: block; background: var(--red-bg); color: var(--red); }
+
+/* ── TABS ────────────────────────────────────────────────── */
+.tabs {
+  background: var(--bg-card2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 13px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.tab.active { color: var(--blue); border-bottom-color: var(--gold); }
+[data-theme="dark"] .tab.active { color: #FFFFFF; }
+
+/* ── SCREENS ─────────────────────────────────────────────── */
+.screens { flex: 1; overflow-y: auto; }
+.screen { display: none; padding: 16px; max-width: 640px; margin: 0 auto; }
+.screen.active { display: block; }
+
+/* ── CHIPS ───────────────────────────────────────────────── */
+.chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 14px;
+  padding-bottom: 2px;
+}
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid var(--border);
+  background: var(--bg-card2);
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.chip.active { background: var(--blue); border-color: var(--blue); color: #FFF; }
+
+/* ── CARDS ───────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card2);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+.card-clickable { cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
+.card-clickable:hover { box-shadow: var(--shadow-md); border-color: var(--blue-hover); }
+.card-clickable:active { transform: scale(0.99); }
+
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+.card-of { font-size: 18px; font-weight: 800; color: var(--blue); letter-spacing: -0.3px; }
+[data-theme="dark"] .card-of { color: #58A6FF; }
+.card-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.5; }
+.card-arrow { color: var(--text-faint); font-size: 20px; margin-left: 8px; flex-shrink: 0; }
+
+/* ── BADGES ─────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.badge-green  { background: var(--green-bg);  color: var(--green); }
+.badge-red    { background: var(--red-bg);    color: var(--red); }
+.badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+.badge-blue   { background: rgba(13,59,133,0.1); color: var(--blue); }
+.badge-gray   { background: var(--bg-card); color: var(--text-muted); }
+[data-theme="dark"] .badge-blue { background: rgba(88,166,255,0.15); color: #58A6FF; }
+
+/* ── PROGRESS ────────────────────────────────────────────── */
+.prog-wrap { margin-top: 10px; }
+.prog-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.4s ease; }
+.prog-label { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+
+/* ── SECTION TITLE ───────────────────────────────────────── */
+.sec-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 20px 0 10px;
+}
+.sec-title:first-child { margin-top: 4px; }
+
+/* ── FORM ────────────────────────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+/* ── DETAIL HEADER ───────────────────────────────────────── */
+.det-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.btn-back {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.btn-back:hover { background: var(--border); }
+.det-of { font-size: 20px; font-weight: 800; color: var(--blue); }
+[data-theme="dark"] .det-of { color: #58A6FF; }
+.det-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── ESTADO BUTTONS ──────────────────────────────────────── */
+.estado-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.btn-estado {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  line-height: 1.3;
+}
+.btn-estado:hover { border-color: var(--blue-hover); color: var(--blue-hover); }
+.btn-estado:active { transform: scale(0.97); }
+.btn-estado.sel-aprobado  { background: var(--green-bg);  border-color: var(--green);  color: var(--green); }
+.btn-estado.sel-rechazado { background: var(--red-bg);    border-color: var(--red);    color: var(--red); }
+.btn-estado.sel-entregado { background: rgba(13,59,133,0.08); border-color: var(--blue); color: var(--blue); }
+.btn-estado.sel-falta     { background: var(--yellow-bg); border-color: var(--yellow); color: var(--yellow); }
+.btn-estado.sel-default   { background: rgba(13,59,133,0.08); border-color: var(--blue); color: var(--blue); }
+
+/* ── LOCK NOTICE ─────────────────────────────────────────── */
+.lock-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--yellow-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--yellow);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--yellow);
+  margin-top: 8px;
+}
+
+/* ── FOTO ────────────────────────────────────────────────── */
+.foto-area { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.btn-foto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-foto:hover { border-color: var(--blue-hover); color: var(--blue-hover); }
+.foto-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  margin-top: 10px;
+  border: 2px solid var(--border);
+}
+
+/* ── SUBAREA CARDS (ingeniería detalle) ──────────────────── */
+.sub-card {
+  background: var(--bg-card2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-left: 3px solid var(--border);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  box-shadow: var(--shadow-sm);
+}
+.sub-card.done     { border-left-color: var(--green); }
+.sub-card.rejected { border-left-color: var(--red); }
+.sub-card.progress { border-left-color: var(--gold); }
+.sub-card.locked   { opacity: 0.5; }
+.sub-name  { font-size: 13px; font-weight: 700; color: var(--text); }
+.sub-state { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.sub-ts    { font-size: 10px; color: var(--text-faint); margin-top: 4px; }
+
+/* ── HISTORIAL ───────────────────────────────────────────── */
+.hist-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.hist-item:last-child { border-bottom: none; }
+.hist-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.hist-main { font-size: 13px; font-weight: 600; color: var(--text); }
+.hist-meta { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+/* ── TOAST ───────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--text);
+  color: var(--bg);
+  padding: 11px 22px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 9999;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+.toast.show  { transform: translateX(-50%) translateY(0); }
+.toast.ok    { background: var(--green); color: #FFF; }
+.toast.err   { background: var(--red);   color: #FFF; }
+.toast.warn  { background: var(--yellow-bg); color: var(--yellow); }
+
+/* ── EMPTY ───────────────────────────────────────────────── */
+.empty {
+  text-align: center;
+  padding: 56px 24px;
+  color: var(--text-faint);
+}
+.empty-icon { font-size: 44px; margin-bottom: 12px; }
+.empty-text { font-size: 15px; font-weight: 600; color: var(--text-muted); }
+.empty-sub  { font-size: 13px; margin-top: 4px; }
+
+/* ── SPINNER ─────────────────────────────────────────────── */
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #FFF;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+input[type="file"] { display: none; }
+
+@media (max-width: 400px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid-3 { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     LOGIN
+══════════════════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-mark">Control de Planta</div>
+  <div class="login-logo">Samitex</div>
+  <div class="login-tagline">Confecciones</div>
+  <div class="login-card">
+    <h2>Identificación</h2>
+    <div class="field">
+      <label>Área</label>
+      <select id="loginArea">
+        <option value="">— Seleccionar —</option>
+        <option value="ingenieria">Ingeniería</option>
+        <option value="almacen_telas">Almacén Telas</option>
+        <option value="corte_planta">Corte Planta</option>
+        <option value="calidad_corte">Calidad Corte</option>
+        <option value="corte_complem">Corte Complem.</option>
+        <option value="calidad_complem">Calidad Complem.</option>
+        <option value="almacen_avios_cost">Almacén Avíos Cost.</option>
+        <option value="calidad_avios_cost">Calidad Avíos Cost.</option>
+        <option value="entrega_pl_tll">Entrega PL/TLL</option>
+        <option value="almacen_avios_acab">Almacén Avíos Acab.</option>
+        <option value="calidad_avios_acab">Calidad Avíos Acab.</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>PIN</label>
+      <input type="password" id="loginPin" placeholder="••••••" maxlength="6" inputmode="numeric">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()" id="btnLogin">Entrar</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     APP SHELL
+══════════════════════════════════════════════════════════ -->
+<div id="appShell">
+  <div class="topbar">
+    <div class="topbar-brand">SAMITEX <span>·</span> Planta</div>
+    <div class="topbar-right">
+      <span class="topbar-area" id="topbarArea">—</span>
+      <button class="btn-theme" id="themeBtn" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
+      <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;color:#fff;border-color:rgba(255,255,255,0.3);" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div id="syncBar" class="syncbar"></div>
+  <div class="tabs" id="tabsBar"></div>
+
+  <div class="screens">
+    <!-- Encargado: mis órdenes -->
+    <div id="scOrdenes" class="screen active">
+      <div class="chips" id="chipsOrdenes">
+        <div class="chip active" onclick="setFilter('todas',this,'chipsOrdenes')">Todas</div>
+        <div class="chip" onclick="setFilter('pendiente',this,'chipsOrdenes')">Pendiente</div>
+        <div class="chip" onclick="setFilter('en_proceso',this,'chipsOrdenes')">En proceso</div>
+        <div class="chip" onclick="setFilter('completado',this,'chipsOrdenes')">Completado</div>
+      </div>
+      <div id="listOrdenes"></div>
+    </div>
+
+    <!-- Detalle orden (encargado) -->
+    <div id="scDetalle" class="screen">
+      <div class="det-head">
+        <button class="btn-back" onclick="backToList()">←</button>
+        <div>
+          <div class="det-of" id="detOf">—</div>
+          <div class="det-sub" id="detSub">—</div>
+        </div>
+      </div>
+      <div id="detBody"></div>
+    </div>
+
+    <!-- Ingeniería: crear órdenes -->
+    <div id="scIngOrdenes" class="screen">
+      <div class="sec-title">Nueva orden</div>
+      <div class="card">
+        <div class="form-grid">
+          <div class="field"><label>OF</label><input type="text" id="nOF" class="form-input" placeholder="4000009796"></div>
+          <div class="field"><label>N° Req.</label><input type="text" id="nReq" class="form-input" placeholder="1149"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>Color</label><input type="text" id="nColor" class="form-input" placeholder="VINO"></div>
+          <div class="field"><label>Artículo</label><input type="text" id="nArticulo" class="form-input" placeholder="ML1022"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>Modelo</label><input type="text" id="nModelo" class="form-input" placeholder="MANSELL"></div>
+          <div class="field"><label>Tipo prenda</label><input type="text" id="nTipo" class="form-input" placeholder="CAMISA"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>Canal</label><input type="text" id="nCanal" class="form-input" placeholder="MARCA"></div>
+          <div class="field"><label>Corte</label><input type="text" id="nCorte" class="form-input" placeholder="PLANTA"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>APT Target</label><input type="text" id="nApt" class="form-input" placeholder="7/09/2026"></div>
+          <div class="field"><label>Total</label><input type="number" id="nTotal" class="form-input" placeholder="460"></div>
+        </div>
+        <div class="field"><label>Fecha programada</label><input type="date" id="nFecha" class="form-input"></div>
+        <button class="btn btn-accent btn-full" style="margin-top:4px;" onclick="crearOrden()">＋ Crear orden</button>
+      </div>
+
+      <div class="sec-title">Órdenes activas</div>
+      <div id="listIngOrdenes"></div>
+    </div>
+
+    <!-- Ingeniería: seguimiento -->
+    <div id="scIngSeg" class="screen">
+      <div class="chips" id="chipsSeg">
+        <div class="chip active" onclick="setFilter('todas',this,'chipsSeg')">Todas</div>
+        <div class="chip" onclick="setFilter('alerta',this,'chipsSeg')">⚠ Alerta</div>
+        <div class="chip" onclick="setFilter('bloqueado',this,'chipsSeg')">🔒 Bloqueado</div>
+        <div class="chip" onclick="setFilter('completo',this,'chipsSeg')">✓ Completado</div>
+      </div>
+      <div id="listSeg"></div>
+    </div>
+
+    <!-- Ingeniería: historial -->
+    <div id="scIngHist" class="screen">
+      <div class="sec-title">Últimos 100 eventos</div>
+      <div class="card">
+        <div id="listHist"></div>
+      </div>
+    </div>
+
+    <!-- Ingeniería: detalle orden (ing view) -->
+    <div id="scIngDetalle" class="screen">
+      <div class="det-head">
+        <button class="btn-back" onclick="backIngDetalle()">←</button>
+        <div>
+          <div class="det-of" id="ingDetOf">—</div>
+          <div class="det-sub" id="ingDetSub">—</div>
+        </div>
+      </div>
+      <div id="ingDetBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<input type="file" id="fotoInput" accept="image/*" capture="environment">
+
+<!-- ══════════════════════════════════════════════════════════
+     SUPABASE SDK
+══════════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════
+const SUPA_URL  = 'https://mzvucelrdkzomyaepirh.supabase.co';
+const SUPA_KEY  = 'sb_publishable_OHxWYKu13BrSs2X-Yc9Agw_yxJ-HnnV';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ══════════════════════════════════════════════════════════
+// PINES (cambiar en producción)
+// ══════════════════════════════════════════════════════════
+const PINES = {
+  ingenieria:         '1234',
+  almacen_telas:      '2000',
+  corte_planta:       '2001',
+  calidad_corte:      '2002',
+  corte_complem:      '2003',
+  calidad_complem:    '2004',
+  almacen_avios_cost: '2005',
+  calidad_avios_cost: '2006',
+  entrega_pl_tll:     '2007',
+  almacen_avios_acab: '2008',
+  calidad_avios_acab: '2009',
+};
+
+// ══════════════════════════════════════════════════════════
+// SUBAREAS CONFIG
+// ══════════════════════════════════════════════════════════
+const SUBAREAS = {
+  almacen_telas:      { label: 'Almacén Telas',       estados: ['ENTREGADO','FALTA NOTA DE ENTREGA','HABILITANDO'] },
+  corte_planta:       { label: 'Corte Planta',         estados: ['EN PROCESO','ENTREGADO'] },
+  calidad_corte:      { label: 'Calidad Corte',        estados: ['APROBADO','RECHAZADO'] },
+  corte_complem:      { label: 'Corte Complem.',       estados: ['ENTREGADO A CALIDAD','ENTREGADO A PCP','FALTA RIBETE','FALTA PRETINA','FALTA RIBETE Y PRETINA'] },
+  calidad_complem:    { label: 'Calidad Complem.',     estados: ['APROBADO','RECHAZADO'] },
+  almacen_avios_cost: { label: 'Almacén Avíos Cost.',  estados: ['ENTREGADO','FALTA NOTA DE ENTREGA','HABILITANDO'] },
+  calidad_avios_cost: { label: 'Calidad Avíos Cost.',  estados: ['APROBADO','FALTANTE'] },
+  entrega_pl_tll:     { label: 'Entrega PL/TLL',       estados: ['ENTR. PLANTA','ENTR. TALLER'],
+                        requiere: { subarea: 'calidad_corte', estado: 'APROBADO' } },
+  almacen_avios_acab: { label: 'Almacén Avíos Acab.',  estados: ['ENTREGADO','FALTA NOTA DE ENTREGA','HABILITANDO'] },
+  calidad_avios_acab: { label: 'Calidad Avíos Acab.',  estados: ['APROBADO','RECHAZADO'] },
+};
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let currentArea  = null;
+let ordenes      = [];
+let eventos      = [];
+let pendingSync  = [];
+let ordenDetalle = null;
+let estadoSel    = null;
+let fotoB64      = null;
+let filterEnc    = 'todas';
+let filterSeg    = 'todas';
+
+// ══════════════════════════════════════════════════════════
+// THEME
+// ══════════════════════════════════════════════════════════
+function initTheme() {
+  const saved = localStorage.getItem('smx_theme') ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(saved);
+}
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('smx_theme', t);
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+initTheme();
+
+// ══════════════════════════════════════════════════════════
+// LOCAL STORAGE
+// ══════════════════════════════════════════════════════════
+function saveLocal() {
+  localStorage.setItem('smx_ordenes',  JSON.stringify(ordenes));
+  localStorage.setItem('smx_eventos',  JSON.stringify(eventos));
+  localStorage.setItem('smx_pending',  JSON.stringify(pendingSync));
+}
+function loadLocal() {
+  ordenes     = JSON.parse(localStorage.getItem('smx_ordenes')  || '[]');
+  eventos     = JSON.parse(localStorage.getItem('smx_eventos')  || '[]');
+  pendingSync = JSON.parse(localStorage.getItem('smx_pending')  || '[]');
+}
+
+// ══════════════════════════════════════════════════════════
+// LOGIN / LOGOUT
+// ══════════════════════════════════════════════════════════
+async function doLogin() {
+  const area = document.getElementById('loginArea').value;
+  const pin  = document.getElementById('loginPin').value;
+  if (!area) { toast('Selecciona tu área', 'warn'); return; }
+  if (!pin)  { toast('Ingresa tu PIN', 'warn'); return; }
+  if (PINES[area] !== pin) { toast('PIN incorrecto', 'err'); return; }
+
+  const btn = document.getElementById('btnLogin');
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+
+  currentArea = area;
+  loadLocal();
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('visible');
+  document.getElementById('topbarArea').textContent = SUBAREAS[area]?.label || 'Ingeniería';
+
+  buildTabs();
+  await syncFromServer();
+
+  btn.innerHTML = 'Entrar';
+  btn.disabled = false;
+}
+
+function doLogout() {
+  currentArea  = null;
+  ordenes      = [];
+  eventos      = [];
+  estadoSel    = null;
+  fotoB64      = null;
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appShell').classList.remove('visible');
+  document.getElementById('loginPin').value = '';
+  document.getElementById('loginArea').value = '';
+}
+
+// ══════════════════════════════════════════════════════════
+// TABS & SCREENS
+// ══════════════════════════════════════════════════════════
+function buildTabs() {
+  const bar = document.getElementById('tabsBar');
+  bar.innerHTML = '';
+  const tabs = currentArea === 'ingenieria'
+    ? [
+        { screen: 'scIngOrdenes', label: 'Órdenes',      cb: () => renderIngOrdenes() },
+        { screen: 'scIngSeg',     label: 'Seguimiento',  cb: () => renderSeg() },
+        { screen: 'scIngHist',    label: 'Historial',    cb: () => renderHist() },
+      ]
+    : [
+        { screen: 'scOrdenes', label: 'Mis órdenes', cb: () => renderOrdenes() },
+      ];
+
+  tabs.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (i === 0 ? ' active' : '');
+    el.textContent = t.label;
+    el.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      showScreen(t.screen);
+      t.cb();
+    };
+    bar.appendChild(el);
+  });
+
+  if (currentArea === 'ingenieria') {
+    showScreen('scIngOrdenes');
+    renderIngOrdenes();
+  } else {
+    showScreen('scOrdenes');
+    renderOrdenes();
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════
+// FILTER CHIPS
+// ══════════════════════════════════════════════════════════
+function setFilter(val, el, groupId) {
+  document.querySelectorAll(`#${groupId} .chip`).forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  if (groupId === 'chipsOrdenes') { filterEnc = val; renderOrdenes(); }
+  if (groupId === 'chipsSeg')     { filterSeg = val; renderSeg(); }
+}
+
+// ══════════════════════════════════════════════════════════
+// HELPERS: ESTADO ACTUAL DE SUBÁREA
+// ══════════════════════════════════════════════════════════
+function estadoActual(orden, subarea) {
+  const evs = eventos
+    .filter(e => e.orden_id === orden.id && e.subarea === subarea)
+    .sort((a,b) => new Date(b.creado_en) - new Date(a.creado_en));
+  return evs[0]?.estado || null;
+}
+
+function isFinal(estado) {
+  if (!estado) return false;
+  return estado === 'APROBADO' || estado === 'ENTREGADO'
+    || estado === 'ENTR. PLANTA' || estado === 'ENTR. TALLER'
+    || estado === 'ENTREGADO A CALIDAD' || estado === 'ENTREGADO A PCP';
+}
+
+function calcProgress(orden) {
+  const keys = Object.keys(SUBAREAS);
+  const done = keys.filter(k => isFinal(estadoActual(orden, k))).length;
+  return Math.round((done / keys.length) * 100);
+}
+
+function badgeForEstado(est) {
+  if (!est) return 'badge-gray';
+  if (est === 'APROBADO' || est.startsWith('ENTREGADO')) return 'badge-green';
+  if (est === 'RECHAZADO' || est === 'FALTANTE') return 'badge-red';
+  if (est.startsWith('FALTA')) return 'badge-yellow';
+  return 'badge-blue';
+}
+
+function selClass(est) {
+  if (!est) return '';
+  if (est === 'APROBADO') return 'sel-aprobado';
+  if (est === 'RECHAZADO') return 'sel-rechazado';
+  if (est.startsWith('FALTA')) return 'sel-falta';
+  if (est.startsWith('ENTREGADO') || est.startsWith('ENTR.')) return 'sel-entregado';
+  return 'sel-default';
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: ENCARGADO — LISTA ÓRDENES
+// ══════════════════════════════════════════════════════════
+function renderOrdenes() {
+  const el = document.getElementById('listOrdenes');
+  let lista = ordenes.filter(o => !o.archivado);
+
+  if (filterEnc === 'pendiente')  lista = lista.filter(o => !estadoActual(o, currentArea));
+  if (filterEnc === 'en_proceso') lista = lista.filter(o => estadoActual(o, currentArea) && !isFinal(estadoActual(o, currentArea)));
+  if (filterEnc === 'completado') lista = lista.filter(o => isFinal(estadoActual(o, currentArea)));
+
+  if (!lista.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Sin órdenes</div><div class="empty-sub">No hay órdenes para tu área</div></div>`;
+    return;
+  }
+
+  el.innerHTML = lista.map(o => {
+    const est = estadoActual(o, currentArea);
+    const pct = calcProgress(o);
+    const badgeCls = badgeForEstado(est);
+    return `<div class="card card-clickable" onclick="abrirDetalle('${o.id}')">
+      <div class="card-head">
+        <div>
+          <div class="card-of">${o.of}</div>
+          <div class="card-meta">${o.articulo || '—'} · ${o.color} · ${o.total || '—'} uds</div>
+          <div class="card-meta">Req. ${o.nro_req} · ${o.fecha_programada || 'Sin fecha'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <span class="badge ${badgeCls}">${est || 'PENDIENTE'}</span>
+          <div class="card-arrow">›</div>
+        </div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+        <div class="prog-label">${pct}% del flujo completado</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: ENCARGADO — DETALLE
+// ══════════════════════════════════════════════════════════
+function abrirDetalle(id) {
+  ordenDetalle = ordenes.find(o => o.id === id);
+  if (!ordenDetalle) return;
+  estadoSel = null;
+  fotoB64   = null;
+  document.getElementById('detOf').textContent  = ordenDetalle.of;
+  document.getElementById('detSub').textContent = `${ordenDetalle.articulo || '—'} · ${ordenDetalle.color} · ${ordenDetalle.total || '—'} uds · Req. ${ordenDetalle.nro_req}`;
+  renderDetalleBody();
+  showScreen('scDetalle');
+}
+
+function backToList() {
+  estadoSel = null; fotoB64 = null;
+  showScreen('scOrdenes');
+  renderOrdenes();
+}
+
+function renderDetalleBody() {
+  const o   = ordenDetalle;
+  const sub = SUBAREAS[currentArea];
+  if (!sub) return;
+
+  const req      = sub.requiere;
+  const bloqueado = req && estadoActual(o, req.subarea) !== req.estado;
+  const estActual = estadoActual(o, currentArea);
+
+  let html = `<div class="card">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-faint);margin-bottom:6px;">Estado actual</div>
+    <div style="font-size:15px;font-weight:700;color:var(--text);padding:10px 12px;background:var(--bg-card);border-radius:8px;margin-bottom:12px;">
+      ${estActual || (bloqueado ? '🔒 Bloqueado' : '— Sin estado')}
+    </div>`;
+
+  if (bloqueado) {
+    html += `<div class="lock-notice">⚠ Requiere que ${SUBAREAS[req.subarea].label} esté en <strong>${req.estado}</strong></div>`;
+  } else {
+    html += `<div style="font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-faint);margin-bottom:8px;">Cambiar estado</div>
+    <div class="estado-grid">
+      ${sub.estados.map(e => {
+        const cls = estadoSel === e ? selClass(e) : '';
+        return `<button class="btn-estado ${cls}" onclick="selEstado(this,'${e}')">${e}</button>`;
+      }).join('')}
+    </div>`;
+  }
+
+  html += `<div class="foto-area">
+    <button class="btn-foto" onclick="tomarFoto()">📷 Adjuntar foto (opcional)</button>
+    <div id="fotoPreview"></div>
+  </div>
+  <button class="btn btn-accent btn-full" style="margin-top:14px;" onclick="guardarEstado()" ${bloqueado?'disabled':''}>
+    ✓ Guardar cambio
+  </button>
+</div>`;
+
+  // Historial de esta subárea en esta orden
+  const hist = eventos
+    .filter(e => e.orden_id === o.id && e.subarea === currentArea)
+    .sort((a,b) => new Date(b.creado_en) - new Date(a.creado_en));
+
+  if (hist.length) {
+    html += `<div class="sec-title">Historial — ${sub.label}</div><div class="card">`;
+    html += hist.map(ev => `<div class="hist-item">
+      <div class="hist-dot"></div>
+      <div>
+        <div class="hist-main">${ev.estado}</div>
+        <div class="hist-meta">${fmtTS(ev.creado_en)}</div>
+      </div>
+    </div>`).join('');
+    html += '</div>';
+  }
+
+  document.getElementById('detBody').innerHTML = html;
+}
+
+function selEstado(btn, estado) {
+  estadoSel = estado;
+  document.querySelectorAll('.btn-estado').forEach(b => {
+    b.className = 'btn-estado';
+  });
+  btn.classList.add(selClass(estado));
+  renderDetalleBody();
+  estadoSel = estado; // re-set after re-render wipes it
+}
+
+function tomarFoto() {
+  const inp = document.getElementById('fotoInput');
+  inp.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      fotoB64 = ev.target.result;
+      document.getElementById('fotoPreview').innerHTML =
+        `<img src="${fotoB64}" class="foto-thumb">`;
+      inp.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
+
+async function guardarEstado() {
+  if (!estadoSel) { toast('Selecciona un estado', 'warn'); return; }
+
+  const evento = {
+    orden_id:  ordenDetalle.id,
+    subarea:   currentArea,
+    estado:    estadoSel,
+    usuario:   SUBAREAS[currentArea]?.label || currentArea,
+    foto_url:  null,
+    creado_en: new Date().toISOString(),
+    _local_id: genId(),
+  };
+
+  eventos.push(evento);
+  pendingSync.push(evento);
+  saveLocal();
+
+  setSyncBar('pending');
+  await pushEventos();
+
+  if (fotoB64) {
+    uploadFoto(fotoB64, evento._local_id);
+    fotoB64 = null;
+  }
+
+  estadoSel = null;
+  toast('Guardado', 'ok');
+  renderDetalleBody();
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: INGENIERÍA — LISTA ÓRDENES
+// ══════════════════════════════════════════════════════════
+async function crearOrden() {
+  const of      = document.getElementById('nOF').value.trim();
+  const nro_req = document.getElementById('nReq').value.trim();
+  const color   = document.getElementById('nColor').value.trim();
+  if (!of || !nro_req || !color) { toast('OF, Req. y Color son obligatorios', 'warn'); return; }
+
+  const nueva = {
+    of, nro_req, color,
+    articulo:         document.getElementById('nArticulo').value.trim() || null,
+    modelo:           document.getElementById('nModelo').value.trim()   || null,
+    tipo_prenda:      document.getElementById('nTipo').value.trim()     || null,
+    canal:            document.getElementById('nCanal').value.trim()    || null,
+    corte:            document.getElementById('nCorte').value.trim()    || null,
+    apt_target:       document.getElementById('nApt').value.trim()      || null,
+    total:            parseInt(document.getElementById('nTotal').value) || null,
+    fecha_programada: document.getElementById('nFecha').value           || null,
+    archivado:        false,
+  };
+
+  setSyncBar('syncing');
+  const { data, error } = await sb.from('ordenes')
+    .upsert(nueva, { onConflict: 'of,color,nro_req', ignoreDuplicates: false })
+    .select().single();
+
+  if (error) { toast('Error al guardar: ' + error.message, 'err'); setSyncBar('error'); return; }
+
+  // Si fecha cambió, registrar evento alerta
+  const existing = ordenes.find(o => o.of === of && o.color === color && o.nro_req === nro_req);
+  if (existing && existing.fecha_programada !== nueva.fecha_programada) {
+    await sb.from('eventos').insert({
+      orden_id: data.id,
+      subarea: 'ingenieria',
+      estado: `FECHA MODIFICADA → ${nueva.fecha_programada}`,
+      usuario: 'Ingeniería',
+    });
+  }
+
+  // Actualizar local
+  const idx = ordenes.findIndex(o => o.id === data.id);
+  if (idx >= 0) ordenes[idx] = data; else ordenes.push(data);
+  saveLocal();
+  setSyncBar('');
+  toast(`Orden ${of} guardada`, 'ok');
+
+  // Limpiar form
+  ['nOF','nReq','nColor','nArticulo','nModelo','nTipo','nCanal','nCorte','nApt','nTotal','nFecha']
+    .forEach(id => { document.getElementById(id).value = ''; });
+
+  renderIngOrdenes();
+}
+
+function renderIngOrdenes() {
+  const el = document.getElementById('listIngOrdenes');
+  const lista = ordenes.filter(o => !o.archivado);
+  if (!lista.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">Sin órdenes</div></div>`;
+    return;
+  }
+  el.innerHTML = lista.map(o => {
+    const pct = calcProgress(o);
+    return `<div class="card card-clickable" onclick="abrirIngDetalle('${o.id}')">
+      <div class="card-head">
+        <div>
+          <div class="card-of">${o.of}</div>
+          <div class="card-meta">${o.articulo || '—'} · ${o.color} · ${o.total || '—'} uds</div>
+          <div class="card-meta">Req. ${o.nro_req} · ${o.modelo || '—'} · ${o.fecha_programada || '—'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <span class="badge ${pct===100?'badge-green':pct>0?'badge-blue':'badge-gray'}">${pct}%</span>
+          <div class="card-arrow">›</div>
+        </div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+        <div class="prog-label">${pct}% del flujo completado</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirIngDetalle(id) {
+  const o = ordenes.find(x => x.id === id);
+  if (!o) return;
+  document.getElementById('ingDetOf').textContent  = o.of;
+  document.getElementById('ingDetSub').textContent = `${o.articulo || '—'} · ${o.color} · Req. ${o.nro_req} · ${o.total || '—'} uds`;
+
+  const body = Object.entries(SUBAREAS).map(([key, sub]) => {
+    const est  = estadoActual(o, key);
+    const req  = sub.requiere;
+    const bloq = req && estadoActual(o, req.subarea) !== req.estado;
+    const cardCls = isFinal(est) ? 'done' : est?.includes('RECHAZADO')||est?.includes('FALTA') ? 'rejected' : est ? 'progress' : bloq ? 'locked' : '';
+    const evLast  = eventos.filter(e => e.orden_id === o.id && e.subarea === key).sort((a,b)=>new Date(b.creado_en)-new Date(a.creado_en))[0];
+    return `<div class="sub-card ${cardCls}">
+      <div class="sub-name">${sub.label}</div>
+      <div class="sub-state">${bloq && !est ? '🔒 Bloqueado' : (est || '— Sin estado')}</div>
+      ${evLast ? `<div class="sub-ts">${fmtTS(evLast.creado_en)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('ingDetBody').innerHTML = body;
+  showScreen('scIngDetalle');
+}
+
+function backIngDetalle() {
+  showScreen('scIngSeg');
+  renderSeg();
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: SEGUIMIENTO
+// ══════════════════════════════════════════════════════════
+function renderSeg() {
+  const el = document.getElementById('listSeg');
+  let lista = ordenes.filter(o => !o.archivado);
+
+  if (filterSeg === 'alerta') {
+    lista = lista.filter(o => Object.keys(SUBAREAS).some(k => {
+      const est = estadoActual(o,k);
+      return est && (est.includes('RECHAZADO') || est.includes('FALTA') || est === 'FALTANTE');
+    }));
+  }
+  if (filterSeg === 'bloqueado') {
+    lista = lista.filter(o => Object.entries(SUBAREAS).some(([k,sub]) => {
+      if (!sub.requiere) return false;
+      return estadoActual(o, sub.requiere.subarea) !== sub.requiere.estado && !estadoActual(o,k);
+    }));
+  }
+  if (filterSeg === 'completo') {
+    lista = lista.filter(o => calcProgress(o) === 100);
+  }
+
+  if (!lista.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin resultados</div></div>`;
+    return;
+  }
+
+  el.innerHTML = lista.map(o => {
+    const pct = calcProgress(o);
+    const badges = Object.entries(SUBAREAS).map(([key, sub]) => {
+      const est = estadoActual(o, key);
+      if (!est) return '';
+      return `<span class="badge ${badgeForEstado(est)}" style="margin:2px;">${est}</span>`;
+    }).filter(Boolean).join('');
+
+    return `<div class="card card-clickable" onclick="abrirIngDetalle('${o.id}')">
+      <div class="card-head">
+        <div>
+          <div class="card-of">${o.of}</div>
+          <div class="card-meta">${o.color} · ${o.articulo || '—'} · ${o.total||'—'} uds · ${o.fecha_programada||'—'}</div>
+        </div>
+        <span class="badge ${pct===100?'badge-green':pct>0?'badge-blue':'badge-gray'}">${pct}%</span>
+      </div>
+      <div style="margin:8px 0;flex-wrap:wrap;display:flex;">${badges||'<span style="font-size:12px;color:var(--text-faint)">Sin actividad</span>'}</div>
+      <div class="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: HISTORIAL
+// ══════════════════════════════════════════════════════════
+function renderHist() {
+  const el = document.getElementById('listHist');
+  const lista = [...eventos].sort((a,b) => new Date(b.creado_en)-new Date(a.creado_en)).slice(0,100);
+  if (!lista.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📜</div><div class="empty-text">Sin eventos</div></div>`;
+    return;
+  }
+  el.innerHTML = lista.map(ev => {
+    const o = ordenes.find(x => x.id === ev.orden_id);
+    return `<div class="hist-item">
+      <div class="hist-dot"></div>
+      <div>
+        <div class="hist-main">${o?.of || '—'} · ${SUBAREAS[ev.subarea]?.label || ev.subarea} → ${ev.estado}</div>
+        <div class="hist-meta">${fmtTS(ev.creado_en)} · ${ev.usuario}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// SUPABASE SYNC
+// ══════════════════════════════════════════════════════════
+async function syncFromServer() {
+  setSyncBar('syncing');
+  try {
+    const [{ data: ords }, { data: evs }] = await Promise.all([
+      sb.from('ordenes').select('*').eq('archivado', false).order('creado_en', { ascending: false }),
+      sb.from('eventos').select('*').order('creado_en', { ascending: false }).limit(500),
+    ]);
+    if (ords) ordenes = ords;
+    if (evs)  eventos = evs;
+    saveLocal();
+    setSyncBar('');
+  } catch {
+    setSyncBar('error');
+  }
+}
+
+async function pushEventos() {
+  if (!pendingSync.length) return;
+  const toSend = pendingSync.map(({ _local_id, ...ev }) => ev);
+  const { error } = await sb.from('eventos').insert(toSend);
+  if (!error) {
+    pendingSync = [];
+    saveLocal();
+    await syncFromServer();
+    setSyncBar('');
+  } else {
+    setSyncBar('error');
+    toast('Sin conexión — guardado localmente', 'warn');
+  }
+}
+
+async function uploadFoto(b64, localId) {
+  try {
+    const blob = await fetch(b64).then(r => r.blob());
+    const path = `eventos/${localId}_${Date.now()}.jpg`;
+    await sb.storage.from('fotos-planta').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    // No queda en el dispositivo — el b64 ya se descartó
+  } catch { /* silent */ }
+}
+
+// Auto-sync cada 90s
+setInterval(() => {
+  if (currentArea && pendingSync.length) pushEventos();
+  else if (currentArea) syncFromServer();
+}, 90000);
+
+// ══════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+function fmtTS(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleDateString('es-PE',{day:'2-digit',month:'short'}) + ' ' +
+         d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+}
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' '+type : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2800);
+}
+function setSyncBar(state) {
+  const bar = document.getElementById('syncBar');
+  bar.className = 'syncbar' + (state ? ' '+state : '');
+  const msgs = { pending:'● Cambios pendientes', syncing:'⟳ Sincronizando...', error:'⚠ Sin conexión — datos guardados localmente' };
+  bar.textContent = msgs[state] || '';
+}
+
+// Init
+loadLocal();
+</script>
+</body>
+</html>
