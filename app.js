@@ -42,7 +42,7 @@ const EXCEL_HEADERS = {
   'ARTICULO':       'articulo',
   'COLOR':          'color',
   'OF':             'of',
-  'TOTAL':          'total',
+  'TOTAL':          'corte_proyectado',
   'FECHA':          'fecha_programada',
 };
 
@@ -55,6 +55,10 @@ let estadoSelMap  = {};     // { subarea: estadoSeleccionado }
 let fotoB64Map    = {};     // { subarea: base64 }
 let filterEnc     = 'todas';
 let filterSeg     = 'todas';
+let filterIng     = 'todas';
+let filterHist    = 'todas';
+let filterUsers   = 'todos';
+let editingOrdenId = null;
 let pinForzado    = false;
 let confirmCb     = null;
 
@@ -75,22 +79,12 @@ function toggleTheme() {
 }
 initTheme();
 
-// ─── CARGA DE USUARIOS EN LOGIN ─────────────────────────────
-async function loadLoginUsers() {
-  const sel = document.getElementById('loginUser');
-  const { data, error } = await sb.from('usuarios_login').select('*').order('nombre');
-  if (error || !data) {
-    sel.innerHTML = '<option value="">Error cargando usuarios</option>';
-    return;
-  }
-  sel.innerHTML = '<option value="">— Seleccionar usuario —</option>' +
-    data.map(u => `<option value="${u.nombre}">${u.nombre} (${u.area})</option>`).join('');
-}
-loadLoginUsers();
+// ─── LOGIN: usuario como texto libre (sin dropdown) ─────────
+// No se precarga ninguna lista; el usuario escribe su nombre.
 
 // ─── LOGIN / LOGOUT ─────────────────────────────────────────
 async function doLogin() {
-  const nombre = document.getElementById('loginUser').value;
+  const nombre = document.getElementById('loginUser').value.trim();
   const pin    = document.getElementById('loginPin').value;
   if (!nombre) { toast('Selecciona tu usuario', 'warn'); return; }
   if (!pin)    { toast('Ingresa tu PIN', 'warn'); return; }
@@ -130,7 +124,7 @@ function doLogout() {
   estadoSelMap = {}; fotoB64Map = {};
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appShell').classList.remove('visible');
-  loadLoginUsers();
+  document.getElementById('loginUser').value = '';
 }
 
 // ─── TABS POR ROL ───────────────────────────────────────────
@@ -181,8 +175,11 @@ function showScreen(id) {
 function setFilter(val, el, groupId) {
   document.querySelectorAll(`#${groupId} .chip`).forEach(c => c.classList.remove('active'));
   el.classList.add('active');
-  if (groupId === 'chipsOrdenes') { filterEnc = val; renderOrdenes(); }
-  if (groupId === 'chipsSeg')     { filterSeg = val; renderSeg(); }
+  if (groupId === 'chipsOrdenes')    { filterEnc   = val; renderOrdenes(); }
+  if (groupId === 'chipsSeg')        { filterSeg   = val; renderSeg(); }
+  if (groupId === 'chipsIngOrdenes') { filterIng   = val; renderIngOrdenes(); }
+  if (groupId === 'chipsHist')       { filterHist  = val; renderHist(); }
+  if (groupId === 'chipsUsers')      { filterUsers = val; renderUsers(); }
 }
 
 // ─── HELPERS DE ESTADO ──────────────────────────────────────
@@ -270,7 +267,7 @@ function renderOrdenes() {
       <div class="card-head">
         <div style="min-width:0;">
           <div class="card-of">${o.of}</div>
-          <div class="card-meta">${o.articulo||'—'} · ${o.color} · ${o.total||'—'} uds · Req. ${o.nro_req}</div>
+          <div class="card-meta">${o.articulo||'—'} · ${o.color} · ${o.corte_proyectado||'—'} uds · Req. ${o.nro_req}</div>
         </div>
         <div class="card-arrow">›</div>
       </div>
@@ -290,7 +287,7 @@ function abrirDetalle(id) {
   estadoSelMap = {}; fotoB64Map = {};
   document.getElementById('detOf').textContent  = ordenDetalle.of;
   document.getElementById('detSub').textContent =
-    `${ordenDetalle.articulo||'—'} · ${ordenDetalle.color} · ${ordenDetalle.total||'—'} uds · Req. ${ordenDetalle.nro_req}`;
+    `${ordenDetalle.articulo||'—'} · ${ordenDetalle.color} · ${ordenDetalle.corte_proyectado||'—'} uds · Req. ${ordenDetalle.nro_req}`;
   renderDetalleBody();
   showScreen('scDetalle');
 }
@@ -330,10 +327,19 @@ function renderDetalleBody() {
           const cls = sel === e ? selClass(e) : '';
           return `<button class="btn-estado ${cls}" onclick="selEstado('${key}','${e.replace(/'/g,"\\'")}')">${e}</button>`;
         }).join('')}
-      </div>
-      <div class="foto-area">
+      </div>`;
+
+      if (key === 'corte_planta' && sel === 'ENTREGADO') {
+        const actual = o.corte_real ?? o.corte_proyectado ?? '';
+        inner += `<div class="field" style="margin-top:12px;">
+          <label>Corte Real (unidades cortadas)</label>
+          <input type="number" id="corteRealInput" placeholder="Proyectado: ${o.corte_proyectado ?? '—'}" value="${actual}">
+        </div>`;
+      }
+
+      inner += `<div class="foto-area">
         <button class="btn-foto" onclick="tomarFoto('${key}')">📷 Foto (opcional)</button>
-        <div id="fotoPrev_${key}">${fotoB64Map[key] ? `<img src="${fotoB64Map[key]}" class="foto-thumb">` : ''}</div>
+        <div id="fotoPrev_${key}">${fotoB64Map[key] ? `<div class="foto-thumb-wrap"><img src="${fotoB64Map[key]}" class="foto-thumb"><button class="foto-delete" onclick="eliminarFoto('${key}')" title="Quitar foto">✕</button></div>` : ''}</div>
       </div>
       <button class="btn btn-accent btn-full" style="margin-top:10px;" onclick="guardarEstado('${key}')" ${!sel?'disabled':''}>✓ Guardar ${sub.label}</button>`;
     }
@@ -347,6 +353,11 @@ function renderDetalleBody() {
 
 function selEstado(subarea, estado) {
   estadoSelMap[subarea] = estado;
+  renderDetalleBody();
+}
+
+function eliminarFoto(subarea) {
+  delete fotoB64Map[subarea];
   renderDetalleBody();
 }
 
@@ -369,6 +380,15 @@ function tomarFoto(subarea) {
 async function guardarEstado(subarea) {
   const estado = estadoSelMap[subarea];
   if (!estado) { toast('Selecciona un estado', 'warn'); return; }
+
+  // Corte Real: solo aplica en corte_planta al pasar a ENTREGADO
+  let corteReal = null;
+  if (subarea === 'corte_planta' && estado === 'ENTREGADO') {
+    const input = document.getElementById('corteRealInput');
+    const val = input ? parseInt(input.value) : NaN;
+    if (isNaN(val) || val < 0) { toast('Ingresa el Corte Real (unidades cortadas)', 'warn'); return; }
+    corteReal = val;
+  }
 
   setSyncBar('syncing');
   let foto_url = null;
@@ -399,6 +419,16 @@ async function guardarEstado(subarea) {
     return;
   }
 
+  if (corteReal !== null) {
+    await sb.from('ordenes').update({ corte_real: corteReal }).eq('id', ordenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ordenDetalle.id,
+      subarea: 'corte_planta',
+      estado: `CORTE REAL REGISTRADO: ${corteReal} uds`,
+      usuario: session.nombre,
+    });
+  }
+
   delete estadoSelMap[subarea];
   setSyncBar('');
   toast(`${SUBAREAS[subarea].label} → ${estado} ✓`, 'ok');
@@ -412,7 +442,7 @@ async function crearOrden() {
   const of = g('nOF'), nro_req = g('nReq'), color = g('nColor');
   if (!of || !nro_req || !color) { toast('OF, N° Req. y Color son obligatorios', 'warn'); return; }
 
-  const nueva = {
+  const datos = {
     of, nro_req, color,
     articulo: g('nArticulo') || null,
     modelo: g('nModelo') || null,
@@ -420,17 +450,24 @@ async function crearOrden() {
     canal: g('nCanal') || null,
     corte: g('nCorte') || null,
     apt_target: g('nApt') || null,
-    total: parseInt(g('nTotal')) || null,
+    corte_proyectado: parseInt(g('nTotal')) || null,
     fecha_programada: g('nFecha') || null,
     archivado: false,
   };
 
-  const res = await upsertOrden(nueva);
-  if (!res.ok) { toast('Error: ' + res.error, 'err'); return; }
+  if (editingOrdenId) {
+    const { error } = await sb.from('ordenes').update(datos).eq('id', editingOrdenId);
+    if (error) { toast('Error al guardar: ' + error.message, 'err'); return; }
+    toast(`Orden ${of} actualizada`, 'ok');
+    cancelarEdicion();
+  } else {
+    const res = await upsertOrden(datos);
+    if (!res.ok) { toast('Error: ' + res.error, 'err'); return; }
+    toast(`Orden ${of} guardada`, 'ok');
+    ['nOF','nReq','nColor','nArticulo','nModelo','nTipo','nCanal','nCorte','nApt','nTotal','nFecha']
+      .forEach(id => document.getElementById(id).value = '');
+  }
 
-  ['nOF','nReq','nColor','nArticulo','nModelo','nTipo','nCanal','nCorte','nApt','nTotal','nFecha']
-    .forEach(id => document.getElementById(id).value = '');
-  toast(`Orden ${of} guardada`, 'ok');
   await syncFromServer();
   renderIngOrdenes();
 }
@@ -584,7 +621,12 @@ function parseFecha(s) {
 // ─── INGENIERÍA: LISTA ÓRDENES ──────────────────────────────
 function renderIngOrdenes() {
   const el = document.getElementById('listIngOrdenes');
-  const lista = ordenes.filter(o => !o.archivado);
+  let lista = ordenes.filter(o => !o.archivado);
+
+  if (filterIng === 'pendiente')  lista = lista.filter(o => calcProgress(o) === 0);
+  if (filterIng === 'en_proceso') lista = lista.filter(o => { const p = calcProgress(o); return p > 0 && p < 100; });
+  if (filterIng === 'completado') lista = lista.filter(o => calcProgress(o) === 100);
+
   if (!lista.length) { el.innerHTML = emptyHTML('📦','Sin órdenes','Crea una o importa un Excel'); return; }
 
   el.innerHTML = lista.map(o => {
@@ -593,11 +635,14 @@ function renderIngOrdenes() {
       <div class="card-head">
         <div style="min-width:0;">
           <div class="card-of">${o.of}</div>
-          <div class="card-meta">${o.articulo||'—'} · ${o.color} · ${o.total||'—'} uds · Req. ${o.nro_req} · ${o.fecha_programada||'—'}</div>
+          <div class="card-meta">${o.articulo||'—'} · ${o.color} · ${o.corte_proyectado||'—'} uds · Req. ${o.nro_req} · ${o.fecha_programada||'—'}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           <span class="badge ${pct===100?'badge-green':pct>0?'badge-blue':'badge-gray'}">${pct}%</span>
-          <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();archivarOrden('${o.id}','${o.of}')">Archivar</button>
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();editarOrden('${o.id}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();archivarOrden('${o.id}','${o.of}')">Archivar</button>
+          </div>
         </div>
       </div>
       <div class="prog-wrap">
@@ -605,6 +650,35 @@ function renderIngOrdenes() {
       </div>
     </div>`;
   }).join('');
+}
+
+function editarOrden(id) {
+  const o = ordenes.find(x => x.id === id);
+  if (!o) return;
+  editingOrdenId = id;
+  document.getElementById('nOF').value = o.of;
+  document.getElementById('nReq').value = o.nro_req;
+  document.getElementById('nColor').value = o.color;
+  document.getElementById('nArticulo').value = o.articulo || '';
+  document.getElementById('nModelo').value = o.modelo || '';
+  document.getElementById('nTipo').value = o.tipo_prenda || '';
+  document.getElementById('nCanal').value = o.canal || '';
+  document.getElementById('nCorte').value = o.corte || '';
+  document.getElementById('nApt').value = o.apt_target || '';
+  document.getElementById('nTotal').value = o.corte_proyectado || '';
+  document.getElementById('nFecha').value = o.fecha_programada || '';
+  document.getElementById('btnCrearOrden').textContent = `✓ Guardar cambios — ${o.of}`;
+  document.getElementById('btnCancelarEdicion').style.display = 'block';
+  document.querySelector('#scIngOrdenes .card').scrollIntoView({ behavior: 'smooth' });
+  toast('Editando orden — modifica los campos y guarda', 'warn');
+}
+
+function cancelarEdicion() {
+  editingOrdenId = null;
+  ['nOF','nReq','nColor','nArticulo','nModelo','nTipo','nCanal','nCorte','nApt','nTotal','nFecha']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('btnCrearOrden').textContent = '＋ Crear orden';
+  document.getElementById('btnCancelarEdicion').style.display = 'none';
 }
 
 function archivarOrden(id, of) {
@@ -626,7 +700,7 @@ function abrirIngDetalle(id, returnScreen) {
   if (!o) return;
   document.getElementById('ingDetOf').textContent  = o.of;
   document.getElementById('ingDetSub').textContent =
-    `${o.articulo||'—'} · ${o.color} · Req. ${o.nro_req} · ${o.total||'—'} uds · ${o.fecha_programada||'—'}`;
+    `${o.articulo||'—'} · ${o.color} · Req. ${o.nro_req} · ${o.corte_proyectado||'—'} uds · ${o.fecha_programada||'—'}`;
 
   const body = Object.entries(SUBAREAS).map(([key, sub]) => {
     const ev   = estadoActual(o, key);
@@ -640,6 +714,7 @@ function abrirIngDetalle(id, returnScreen) {
     return `<div class="sub-card ${cls}">
       <div class="sub-name">${sub.label}</div>
       <div class="sub-state">${bloq && !est ? '🔒 Bloqueado' : (est || '— Sin estado')}</div>
+      ${key === 'corte_planta' && o.corte_real != null ? `<div class="sub-ts">✂️ Corte Real: ${o.corte_real} uds (Proyectado: ${o.corte_proyectado ?? '—'})</div>` : ''}
       ${ev ? `<div class="sub-ts">📅 ${fmtTS(ev.creado_en)} · ${ev.usuario}</div>` : ''}
     </div>`;
   }).join('');
@@ -680,7 +755,7 @@ function segCardHTML(o) {
     <div class="card-head">
       <div style="min-width:0;">
         <div class="card-of">${o.of}</div>
-        <div class="card-meta">${o.color} · ${o.articulo||'—'} · ${o.total||'—'} uds · ${o.fecha_programada||'—'}</div>
+        <div class="card-meta">${o.color} · ${o.articulo||'—'} · ${o.corte_proyectado||'—'} uds · ${o.fecha_programada||'—'}</div>
       </div>
       <span class="badge ${pct===100?'badge-green':pct>0?'badge-blue':'badge-gray'}">${pct}%</span>
     </div>
@@ -692,7 +767,14 @@ function segCardHTML(o) {
 // ─── HISTORIAL ──────────────────────────────────────────────
 function renderHist() {
   const el = document.getElementById('listHist');
-  const lista = [...eventos].sort((a,b) => new Date(b.creado_en)-new Date(a.creado_en)).slice(0,200);
+  let lista = [...eventos].sort((a,b) => new Date(b.creado_en)-new Date(a.creado_en));
+
+  if (filterHist !== 'todas') {
+    const grupo = filterHist === 'ingenieria' ? ['ingenieria'] : (AREA_SUBAREAS[filterHist] || []);
+    lista = lista.filter(ev => grupo.includes(ev.subarea));
+  }
+  lista = lista.slice(0, 200);
+
   if (!lista.length) { el.innerHTML = emptyHTML('📜','Sin eventos',''); return; }
   el.innerHTML = lista.map(ev => {
     const o = ordenes.find(x => x.id === ev.orden_id);
@@ -744,7 +826,14 @@ async function renderUsers() {
   const { data, error } = await sb.from('usuarios_admin').select('*').order('area').order('nombre');
   if (error || !data) { el.innerHTML = emptyHTML('⚠','Error cargando usuarios',''); return; }
 
-  el.innerHTML = data.map(u => `
+  let lista = data;
+  if (filterUsers === 'activos')       lista = lista.filter(u => u.activo);
+  if (filterUsers === 'inactivos')     lista = lista.filter(u => !u.activo);
+  if (filterUsers === 'pin_pendiente') lista = lista.filter(u => u.debe_cambiar_pin);
+
+  if (!lista.length) { el.innerHTML = emptyHTML('👤','Sin resultados',''); return; }
+
+  el.innerHTML = lista.map(u => `
     <div class="user-row" style="${!u.activo?'opacity:.5;':''}">
       <div class="user-info">
         <div class="user-name">${u.nombre} ${u.debe_cambiar_pin?'<span class="badge badge-yellow">PIN pendiente</span>':''}</div>

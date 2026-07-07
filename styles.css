@@ -405,6 +405,20 @@ input, select, button, textarea { font-family: inherit; }
   margin-bottom: 12px;
 }
 .import-zone:hover { border-color: var(--gold); background: var(--bg-card); }
+
+/* ── FOTO ADJUNTA (miniatura + borrar) ────────────────────── */
+.foto-thumb-wrap { position: relative; display: inline-block; margin-top: 10px; }
+.foto-thumb {
+  width: 72px; height: 72px; border-radius: 8px;
+  object-fit: cover; border: 2px solid var(--border); display: block;
+}
+.foto-delete {
+  position: absolute; top: -6px; right: -6px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--red); color: #FFF; border: 2px solid var(--bg-card2);
+  font-size: 12px; font-weight: 700; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
 .import-icon  { font-size: 32px; margin-bottom: 8px; }
 .import-title { font-size: 14px; font-weight: 700; color: var(--text); }
 .import-sub   { font-size: 11px; color: var(--text-faint); margin-top: 4px; line-height: 1.6; }

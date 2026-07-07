@@ -21,7 +21,7 @@
     <h2>Identificación</h2>
     <div class="field">
       <label>Usuario</label>
-      <select id="loginUser"><option value="">Cargando usuarios...</option></select>
+      <input type="text" id="loginUser" placeholder="Escribe tu usuario" autocomplete="username">
     </div>
     <div class="field">
       <label>PIN</label>
@@ -88,7 +88,7 @@
           <span class="header-tag">ARTICULO</span>
           <span class="header-tag">COLOR</span>
           <span class="header-tag">OF</span>
-          <span class="header-tag">Total</span>
+          <span class="header-tag">Total</span> <span style="font-size:9px;color:var(--text-faint);">(→ Corte Proyectado)</span>
           <span class="header-tag">FECHA</span>
         </div>
       </div>
@@ -113,13 +113,20 @@
         </div>
         <div class="form-grid">
           <div class="field"><label>APT Target</label><input type="text" id="nApt" placeholder="7/09/2026"></div>
-          <div class="field"><label>Total</label><input type="number" id="nTotal" placeholder="460"></div>
+          <div class="field"><label>Corte Proyectado</label><input type="number" id="nTotal" placeholder="460"></div>
         </div>
         <div class="field"><label>Fecha programada</label><input type="date" id="nFecha"></div>
-        <button class="btn btn-accent btn-full" onclick="crearOrden()">＋ Crear orden</button>
+        <button class="btn btn-accent btn-full" id="btnCrearOrden" onclick="crearOrden()">＋ Crear orden</button>
+        <button class="btn btn-ghost btn-full" id="btnCancelarEdicion" style="display:none;margin-top:8px;" onclick="cancelarEdicion()">Cancelar edición</button>
       </div>
 
       <div class="sec-title">Órdenes activas</div>
+      <div class="chips" id="chipsIngOrdenes">
+        <div class="chip active" onclick="setFilter('todas',this,'chipsIngOrdenes')">Todas</div>
+        <div class="chip" onclick="setFilter('pendiente',this,'chipsIngOrdenes')">Sin iniciar</div>
+        <div class="chip" onclick="setFilter('en_proceso',this,'chipsIngOrdenes')">En proceso</div>
+        <div class="chip" onclick="setFilter('completado',this,'chipsIngOrdenes')">Completadas</div>
+      </div>
       <div id="listIngOrdenes"></div>
     </div>
 
@@ -137,6 +144,13 @@
     <!-- INGENIERÍA: historial -->
     <div id="scIngHist" class="screen">
       <div class="sec-title">Últimos 200 eventos — fecha y hora exacta</div>
+      <div class="chips" id="chipsHist">
+        <div class="chip active" onclick="setFilter('todas',this,'chipsHist')">Todas</div>
+        <div class="chip" onclick="setFilter('almacen',this,'chipsHist')">Almacén</div>
+        <div class="chip" onclick="setFilter('corte',this,'chipsHist')">Corte</div>
+        <div class="chip" onclick="setFilter('calidad',this,'chipsHist')">Calidad</div>
+        <div class="chip" onclick="setFilter('ingenieria',this,'chipsHist')">Ingeniería</div>
+      </div>
       <div class="card"><div id="listHist"></div></div>
     </div>
 
@@ -160,6 +174,12 @@
         <button class="btn btn-primary btn-full" onclick="crearUsuario()">＋ Agregar usuario</button>
       </div>
       <div class="sec-title">Usuarios registrados</div>
+      <div class="chips" id="chipsUsers">
+        <div class="chip active" onclick="setFilter('todos',this,'chipsUsers')">Todos</div>
+        <div class="chip" onclick="setFilter('activos',this,'chipsUsers')">Activos</div>
+        <div class="chip" onclick="setFilter('inactivos',this,'chipsUsers')">Inactivos</div>
+        <div class="chip" onclick="setFilter('pin_pendiente',this,'chipsUsers')">PIN pendiente</div>
+      </div>
       <div id="listUsers"></div>
     </div>
 
