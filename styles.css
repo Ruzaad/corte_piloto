@@ -97,7 +97,6 @@ input, select, button, textarea { font-family: inherit; }
   border-radius: var(--radius-sm);
   font-size: 15px; color: var(--text);
   outline: none; transition: border-color .15s;
-  appearance: none;
   -webkit-appearance: none;
 }
 .field select:focus, .field input:focus { border-color: var(--blue-hover); }
@@ -278,6 +277,27 @@ input, select, button, textarea { font-family: inherit; }
 .btn-estado.sel-falta     { background: var(--yellow-bg); border-color: var(--yellow); color: var(--yellow); }
 .btn-estado.sel-default   { background: rgba(13,59,133,.08); border-color: var(--blue); color: var(--blue); }
 [data-theme="dark"] .btn-estado.sel-default { background: rgba(88,166,255,.12); border-color: #58A6FF; color: #58A6FF; }
+.btn-estado.is-current {
+  box-shadow: 0 0 0 2px var(--green) inset;
+  font-weight: 800;
+}
+.btn-estado.is-current::before { content: '✓ '; }
+
+/* ── SEARCH BOX ────────────────────────────────────────── */
+.search-box {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--bg-card2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  margin-bottom: 12px;
+  transition: border-color .15s;
+}
+.search-box:focus { border-color: var(--blue-hover); }
+.search-box::placeholder { color: var(--text-faint); }
 
 /* Grupo de subárea dentro del detalle */
 .subarea-group {

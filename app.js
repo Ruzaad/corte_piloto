@@ -203,6 +203,12 @@ function calcProgress(orden) {
   return Math.round((done / keys.length) * 100);
 }
 
+function matchesSearch(o, term) {
+  if (!term) return true;
+  const t = term.toLowerCase().trim();
+  return [o.of, o.color, o.nro_req, o.articulo].some(v => v && String(v).toLowerCase().includes(t));
+}
+
 function tieneAlerta(orden) {
   return Object.keys(SUBAREAS).some(k => {
     const est = estadoActual(orden,k)?.estado;
@@ -243,7 +249,8 @@ function misSubareas() {
 function renderOrdenes() {
   const el = document.getElementById('listOrdenes');
   const subs = misSubareas();
-  let lista = ordenes.filter(o => !o.archivado);
+  const term = document.getElementById('searchEnc')?.value || '';
+  let lista = ordenes.filter(o => !o.archivado && matchesSearch(o, term));
 
   const estadoDeMisSubs = o => subs.map(s => estadoActual(o,s)?.estado).filter(Boolean);
 
@@ -324,7 +331,8 @@ function renderDetalleBody() {
     } else {
       inner += `<div class="estado-grid">
         ${sub.estados.map(e => {
-          const cls = sel === e ? selClass(e) : '';
+          let cls = sel === e ? selClass(e) : '';
+          if (!sel && evActual?.estado === e) cls += ' is-current';
           return `<button class="btn-estado ${cls}" onclick="selEstado('${key}','${e.replace(/'/g,"\\'")}')">${e}</button>`;
         }).join('')}
       </div>`;
@@ -621,7 +629,8 @@ function parseFecha(s) {
 // ─── INGENIERÍA: LISTA ÓRDENES ──────────────────────────────
 function renderIngOrdenes() {
   const el = document.getElementById('listIngOrdenes');
-  let lista = ordenes.filter(o => !o.archivado);
+  const term = document.getElementById('searchIng')?.value || '';
+  let lista = ordenes.filter(o => !o.archivado && matchesSearch(o, term));
 
   if (filterIng === 'pendiente')  lista = lista.filter(o => calcProgress(o) === 0);
   if (filterIng === 'en_proceso') lista = lista.filter(o => { const p = calcProgress(o); return p > 0 && p < 100; });
@@ -691,8 +700,11 @@ function archivarOrden(id, of) {
   });
 }
 
-// ─── DETALLE (ing / gerencia) ───────────────────────────────
+// ─── DETALLE (ing = editable / gerencia = solo lectura) ─────
 let ingDetalleReturn = 'scIngSeg';
+let ingOrdenDetalle  = null;
+let adminEstadoSelMap = {};
+let adminFotoB64Map   = {};
 
 function abrirIngDetalle(id, returnScreen) {
   ingDetalleReturn = returnScreen || (session.area === 'gerencia' ? 'scGerencia' : 'scIngSeg');
@@ -702,25 +714,162 @@ function abrirIngDetalle(id, returnScreen) {
   document.getElementById('ingDetSub').textContent =
     `${o.articulo||'—'} · ${o.color} · Req. ${o.nro_req} · ${o.corte_proyectado||'—'} uds · ${o.fecha_programada||'—'}`;
 
-  const body = Object.entries(SUBAREAS).map(([key, sub]) => {
-    const ev   = estadoActual(o, key);
-    const est  = ev?.estado;
+  if (session.area === 'ingenieria') {
+    ingOrdenDetalle = o;
+    adminEstadoSelMap = {};
+    adminFotoB64Map = {};
+    renderIngDetalleBody();
+  } else {
+    // Gerencia: solo lectura
+    const body = Object.entries(SUBAREAS).map(([key, sub]) => {
+      const ev   = estadoActual(o, key);
+      const est  = ev?.estado;
+      const req  = sub.requiere;
+      const bloq = req && estadoActual(o, req.subarea)?.estado !== req.estado;
+      const cls  = isFinal(est) ? 'done'
+                 : est && (est.includes('RECHAZADO')||est.includes('FALTA')) ? 'rejected'
+                 : est ? 'progress'
+                 : bloq ? 'locked' : '';
+      return `<div class="sub-card ${cls}">
+        <div class="sub-name">${sub.label}</div>
+        <div class="sub-state">${bloq && !est ? '🔒 Bloqueado' : (est || '— Sin estado')}</div>
+        ${key === 'corte_planta' && o.corte_real != null ? `<div class="sub-ts">✂️ Corte Real: ${o.corte_real} uds (Proyectado: ${o.corte_proyectado ?? '—'})</div>` : ''}
+        ${ev ? `<div class="sub-ts">📅 ${fmtTS(ev.creado_en)} · ${ev.usuario}</div>` : ''}
+      </div>`;
+    }).join('');
+    document.getElementById('ingDetBody').innerHTML = body;
+  }
+
+  showScreen('scIngDetalle');
+}
+
+// Ingeniería puede editar el estado de CUALQUIER subárea desde aquí.
+// El estado actual siempre se resalta en verde para dejar claro qué
+// se está sobrescribiendo.
+function renderIngDetalleBody() {
+  const o = ingOrdenDetalle;
+  const html = Object.entries(SUBAREAS).map(([key, sub]) => {
     const req  = sub.requiere;
-    const bloq = req && estadoActual(o, req.subarea)?.estado !== req.estado;
-    const cls  = isFinal(est) ? 'done'
-               : est && (est.includes('RECHAZADO')||est.includes('FALTA')) ? 'rejected'
-               : est ? 'progress'
-               : bloq ? 'locked' : '';
-    return `<div class="sub-card ${cls}">
-      <div class="sub-name">${sub.label}</div>
-      <div class="sub-state">${bloq && !est ? '🔒 Bloqueado' : (est || '— Sin estado')}</div>
-      ${key === 'corte_planta' && o.corte_real != null ? `<div class="sub-ts">✂️ Corte Real: ${o.corte_real} uds (Proyectado: ${o.corte_proyectado ?? '—'})</div>` : ''}
-      ${ev ? `<div class="sub-ts">📅 ${fmtTS(ev.creado_en)} · ${ev.usuario}</div>` : ''}
+    const evActual = estadoActual(o, key);
+    const sel = adminEstadoSelMap[key];
+
+    let inner = `<div class="subarea-group">
+      <div class="subarea-group-head">
+        <div class="subarea-group-name">${sub.label}</div>
+        <span class="estado-actual-pill">${evActual ? evActual.estado : '—'}</span>
+      </div>`;
+
+    if (evActual) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">Último cambio: ${fmtTS(evActual.creado_en)} · ${evActual.usuario}</div>`;
+    }
+    if (key === 'corte_planta' && o.corte_real != null) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">✂️ Corte Real: ${o.corte_real} uds (Proyectado: ${o.corte_proyectado ?? '—'})</div>`;
+    }
+    if (req) {
+      const reqOK = estadoActual(o, req.subarea)?.estado === req.estado;
+      if (!reqOK) inner += `<div class="lock-notice">ℹ Normalmente requiere ${SUBAREAS[req.subarea].label} = ${req.estado} — como Ingeniería, puedes forzar el cambio igual.</div>`;
+    }
+
+    inner += `<div class="estado-grid">
+      ${sub.estados.map(e => {
+        let cls = sel === e ? selClass(e) : '';
+        if (!sel && evActual?.estado === e) cls += ' is-current';
+        return `<button class="btn-estado ${cls}" onclick="selEstadoAdmin('${key}','${e.replace(/'/g,"\\'")}')">${e}</button>`;
+      }).join('')}
     </div>`;
+
+    if (key === 'corte_planta' && sel === 'ENTREGADO') {
+      const actual = o.corte_real ?? o.corte_proyectado ?? '';
+      inner += `<div class="field" style="margin-top:12px;">
+        <label>Corte Real (unidades cortadas)</label>
+        <input type="number" id="corteRealInputAdmin" placeholder="Proyectado: ${o.corte_proyectado ?? '—'}" value="${actual}">
+      </div>`;
+    }
+
+    inner += `<div class="foto-area">
+      <button class="btn-foto" onclick="tomarFotoAdmin('${key}')">📷 Foto (opcional)</button>
+      <div id="fotoPrevAdmin_${key}">${adminFotoB64Map[key] ? `<div class="foto-thumb-wrap"><img src="${adminFotoB64Map[key]}" class="foto-thumb"><button class="foto-delete" onclick="eliminarFotoAdmin('${key}')" title="Quitar foto">✕</button></div>` : ''}</div>
+    </div>
+    <button class="btn btn-accent btn-full" style="margin-top:10px;" onclick="guardarEstadoAdmin('${key}')" ${!sel?'disabled':''}>✓ Guardar ${sub.label}</button>
+    </div>`;
+
+    return inner;
   }).join('');
 
-  document.getElementById('ingDetBody').innerHTML = body;
-  showScreen('scIngDetalle');
+  document.getElementById('ingDetBody').innerHTML = html;
+}
+
+function selEstadoAdmin(subarea, estado) {
+  adminEstadoSelMap[subarea] = estado;
+  renderIngDetalleBody();
+}
+
+function tomarFotoAdmin(subarea) {
+  const inp = document.getElementById('fotoInput');
+  inp.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      adminFotoB64Map[subarea] = ev.target.result;
+      renderIngDetalleBody();
+      inp.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
+
+function eliminarFotoAdmin(subarea) {
+  delete adminFotoB64Map[subarea];
+  renderIngDetalleBody();
+}
+
+async function guardarEstadoAdmin(subarea) {
+  const estado = adminEstadoSelMap[subarea];
+  if (!estado) { toast('Selecciona un estado', 'warn'); return; }
+
+  let corteReal = null;
+  if (subarea === 'corte_planta' && estado === 'ENTREGADO') {
+    const input = document.getElementById('corteRealInputAdmin');
+    const val = input ? parseInt(input.value) : NaN;
+    if (isNaN(val) || val < 0) { toast('Ingresa el Corte Real (unidades cortadas)', 'warn'); return; }
+    corteReal = val;
+  }
+
+  setSyncBar('syncing');
+  let foto_url = null;
+  if (adminFotoB64Map[subarea]) {
+    try {
+      const blob = await fetch(adminFotoB64Map[subarea]).then(r => r.blob());
+      const path = `eventos/${ingOrdenDetalle.of}_${subarea}_${Date.now()}.jpg`;
+      const { error: upErr } = await sb.storage.from('fotos-planta').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      if (!upErr) foto_url = path;
+    } catch { /* opcional */ }
+    delete adminFotoB64Map[subarea];
+  }
+
+  const { error } = await sb.from('eventos').insert({
+    orden_id: ingOrdenDetalle.id, subarea, estado,
+    usuario: `${session.nombre} (admin)`, foto_url,
+  });
+  if (error) { setSyncBar('error'); toast('Error al guardar', 'err'); return; }
+
+  if (corteReal !== null) {
+    await sb.from('ordenes').update({ corte_real: corteReal }).eq('id', ingOrdenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ingOrdenDetalle.id, subarea: 'corte_planta',
+      estado: `CORTE REAL REGISTRADO: ${corteReal} uds`,
+      usuario: `${session.nombre} (admin)`,
+    });
+  }
+
+  delete adminEstadoSelMap[subarea];
+  setSyncBar('');
+  toast(`${SUBAREAS[subarea].label} → ${estado} ✓`, 'ok');
+  await syncFromServer();
+  ingOrdenDetalle = ordenes.find(x => x.id === ingOrdenDetalle.id);
+  renderIngDetalleBody();
 }
 
 function backIngDetalle() {
@@ -732,7 +881,8 @@ function backIngDetalle() {
 // ─── SEGUIMIENTO ────────────────────────────────────────────
 function renderSeg() {
   const el = document.getElementById('listSeg');
-  let lista = ordenes.filter(o => !o.archivado);
+  const term = document.getElementById('searchSeg')?.value || '';
+  let lista = ordenes.filter(o => !o.archivado && matchesSearch(o, term));
 
   if (filterSeg === 'alerta')    lista = lista.filter(tieneAlerta);
   if (filterSeg === 'bloqueado') lista = lista.filter(estaBloqueada);
@@ -794,6 +944,8 @@ function renderGerencia() {
   const alertas    = activas.filter(tieneAlerta);
   const bloqueadas = activas.filter(estaBloqueada);
   const completas  = activas.filter(o => calcProgress(o) === 100);
+  const term       = document.getElementById('searchGer')?.value || '';
+  const filtradas  = activas.filter(o => matchesSearch(o, term));
 
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi"><div class="kpi-num">${activas.length}</div><div class="kpi-label">Órdenes activas</div></div>
@@ -803,7 +955,7 @@ function renderGerencia() {
 
   document.getElementById('gerAlertas').innerHTML    = alertas.length    ? alertas.map(segCardHTML).join('')    : emptyHTML('✅','Sin alertas','');
   document.getElementById('gerBloqueadas').innerHTML = bloqueadas.length ? bloqueadas.map(segCardHTML).join('') : emptyHTML('🔓','Nada bloqueado','');
-  document.getElementById('gerTodas').innerHTML      = activas.length    ? activas.map(segCardHTML).join('')    : emptyHTML('📦','Sin órdenes','');
+  document.getElementById('gerTodas').innerHTML      = filtradas.length  ? filtradas.map(segCardHTML).join('')  : emptyHTML('📦','Sin resultados','');
 }
 
 // ─── USUARIOS (admin) ───────────────────────────────────────

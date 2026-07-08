@@ -50,6 +50,7 @@
 
     <!-- ENCARGADO: lista de órdenes -->
     <div id="scOrdenes" class="screen">
+      <input type="text" class="search-box" id="searchEnc" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderOrdenes()">
       <div class="chips" id="chipsOrdenes">
         <div class="chip active" onclick="setFilter('todas',this,'chipsOrdenes')">Todas</div>
         <div class="chip" onclick="setFilter('pendiente',this,'chipsOrdenes')">Pendiente</div>
@@ -121,6 +122,7 @@
       </div>
 
       <div class="sec-title">Órdenes activas</div>
+      <input type="text" class="search-box" id="searchIng" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderIngOrdenes()">
       <div class="chips" id="chipsIngOrdenes">
         <div class="chip active" onclick="setFilter('todas',this,'chipsIngOrdenes')">Todas</div>
         <div class="chip" onclick="setFilter('pendiente',this,'chipsIngOrdenes')">Sin iniciar</div>
@@ -132,6 +134,7 @@
 
     <!-- INGENIERÍA: seguimiento -->
     <div id="scIngSeg" class="screen">
+      <input type="text" class="search-box" id="searchSeg" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderSeg()">
       <div class="chips" id="chipsSeg">
         <div class="chip active" onclick="setFilter('todas',this,'chipsSeg')">Todas</div>
         <div class="chip" onclick="setFilter('alerta',this,'chipsSeg')">⚠ Alerta</div>
@@ -204,6 +207,7 @@
       <div class="sec-title">Órdenes bloqueadas</div>
       <div id="gerBloqueadas"></div>
       <div class="sec-title">Todas las órdenes</div>
+      <input type="text" class="search-box" id="searchGer" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderGerencia()">
       <div id="gerTodas"></div>
     </div>
 
