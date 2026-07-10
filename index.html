@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Samitex">
 <title>Samitex · Planta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -27,7 +30,7 @@
       <label>PIN</label>
       <input type="password" id="loginPin" placeholder="••••••" maxlength="6" inputmode="numeric" pattern="[0-9]*">
     </div>
-    <button class="btn btn-primary btn-full" id="btnLogin" onclick="doLogin()">Entrar</button>
+    <button class="btn btn-accent btn-full" id="btnLogin" onclick="doLogin()">Entrar</button>
   </div>
 </div>
 
@@ -50,165 +53,218 @@
 
     <!-- ENCARGADO: lista de órdenes -->
     <div id="scOrdenes" class="screen">
-      <input type="text" class="search-box" id="searchEnc" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderOrdenes()">
-      <div class="chips" id="chipsOrdenes">
-        <div class="chip active" onclick="setFilter('todas',this,'chipsOrdenes')">Todas</div>
-        <div class="chip" onclick="setFilter('pendiente',this,'chipsOrdenes')">Pendiente</div>
-        <div class="chip" onclick="setFilter('en_proceso',this,'chipsOrdenes')">En proceso</div>
-        <div class="chip" onclick="setFilter('completado',this,'chipsOrdenes')">Completado</div>
+      <div class="screen-filters">
+        <input type="text" class="search-box" id="searchEnc" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderOrdenes()">
+        <div class="chips" id="chipsOrdenes">
+          <div class="chip active" onclick="setFilter('todas',this,'chipsOrdenes')">Todas</div>
+          <div class="chip" onclick="setFilter('pendiente',this,'chipsOrdenes')">Pendiente</div>
+          <div class="chip" onclick="setFilter('en_proceso',this,'chipsOrdenes')">En proceso</div>
+          <div class="chip" onclick="setFilter('completado',this,'chipsOrdenes')">Completado</div>
+        </div>
       </div>
-      <div id="listOrdenes"></div>
+      <div class="screen-data">
+        <div id="listOrdenes" class="cards-grid scroll-section"></div>
+      </div>
     </div>
 
     <!-- ENCARGADO: detalle de orden (multi-subárea) -->
     <div id="scDetalle" class="screen">
-      <div class="det-head">
-        <button class="btn-back" onclick="backToList()">←</button>
-        <div>
-          <div class="det-of" id="detOf">—</div>
-          <div class="det-sub" id="detSub">—</div>
+      <div class="screen-filters">
+        <div class="det-head">
+          <button class="btn-back" onclick="backToList()">←</button>
+          <div>
+            <div class="det-of" id="detOf">—</div>
+            <div class="det-sub" id="detSub">—</div>
+          </div>
         </div>
       </div>
-      <div id="detBody"></div>
+      <div class="screen-data">
+        <div id="detBody" class="detail-grid"></div>
+      </div>
     </div>
 
     <!-- INGENIERÍA: órdenes (crear + importar) -->
     <div id="scIngOrdenes" class="screen">
-      <div class="sec-title">Importar desde Excel</div>
-      <div class="import-zone" onclick="document.getElementById('excelInput').click()">
-        <div class="import-icon">📥</div>
-        <div class="import-title">Cargar archivo Excel</div>
-        <div class="import-sub">Solo se leerán estas columnas:</div>
-        <div class="headers-list">
-          <span class="header-tag">CORTE</span>
-          <span class="header-tag">T_PRENDA</span>
-          <span class="header-tag">CANAL</span>
-          <span class="header-tag">N° REQ./ PED.</span>
-          <span class="header-tag">APT TARGET</span>
-          <span class="header-tag">MODELO</span>
-          <span class="header-tag">ARTICULO</span>
-          <span class="header-tag">COLOR</span>
-          <span class="header-tag">OF</span>
-          <span class="header-tag">Total</span> <span style="font-size:9px;color:var(--text-faint);">(→ Corte Proyectado)</span>
-          <span class="header-tag">FECHA</span>
+      <div class="screen-filters">
+        <input type="text" class="search-box" id="searchIng" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderIngOrdenes()">
+        <div class="chips" id="chipsIngOrdenes">
+          <div class="chip active" onclick="setFilter('todas',this,'chipsIngOrdenes')">Todas</div>
+          <div class="chip" onclick="setFilter('pendiente',this,'chipsIngOrdenes')">Sin iniciar</div>
+          <div class="chip" onclick="setFilter('en_proceso',this,'chipsIngOrdenes')">En proceso</div>
+          <div class="chip" onclick="setFilter('completado',this,'chipsIngOrdenes')">Completadas</div>
+        </div>
+        <div class="export-box">
+          <input type="date" id="excelFechaIng" title="Fecha del reporte Excel">
+          <button class="btn btn-sm btn-accent" onclick="descargarExcel('excelFechaIng')">⬇ Excel</button>
         </div>
       </div>
+      <div class="screen-data">
+        <div class="ing-layout">
+          <div class="ing-col">
+            <div class="sec-title">Importar desde Excel</div>
+            <div class="import-zone" onclick="document.getElementById('excelInput').click()">
+              <div class="import-icon">📥</div>
+              <div class="import-title">Cargar archivo Excel</div>
+              <div class="import-sub">Solo se leerán estas columnas:</div>
+              <div class="headers-list">
+                <span class="header-tag">CORTE</span>
+                <span class="header-tag">T_PRENDA</span>
+                <span class="header-tag">CANAL</span>
+                <span class="header-tag">N° REQ./ PED.</span>
+                <span class="header-tag">APT TARGET</span>
+                <span class="header-tag">MODELO</span>
+                <span class="header-tag">ARTICULO</span>
+                <span class="header-tag">COLOR</span>
+                <span class="header-tag">OF</span>
+                <span class="header-tag">Total</span> <span style="font-size:9px;color:var(--text-faint);">(→ Corte Proyectado)</span>
+                <span class="header-tag">FECHA</span>
+              </div>
+            </div>
+          </div>
 
-      <div class="sec-title">Nueva orden manual</div>
-      <div class="card">
-        <div class="form-grid">
-          <div class="field"><label>OF *</label><input type="text" id="nOF" placeholder="4000009796"></div>
-          <div class="field"><label>N° Req. *</label><input type="text" id="nReq" placeholder="1149"></div>
+          <div class="ing-col">
+            <div class="sec-title">Nueva orden manual</div>
+            <div class="card">
+              <div class="form-grid">
+                <div class="field"><label>OF *</label><input type="text" id="nOF" placeholder="4000009796"></div>
+                <div class="field"><label>N° Req. *</label><input type="text" id="nReq" placeholder="1149"></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Color *</label><input type="text" id="nColor" placeholder="VINO"></div>
+                <div class="field"><label>Artículo</label><input type="text" id="nArticulo" placeholder="ML1022"></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Modelo</label><input type="text" id="nModelo" placeholder="MANSELL"></div>
+                <div class="field"><label>Tipo prenda</label><input type="text" id="nTipo" placeholder="CAMISA"></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Canal</label><input type="text" id="nCanal" placeholder="MARCA"></div>
+                <div class="field"><label>Corte</label><input type="text" id="nCorte" placeholder="PLANTA"></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>APT Target</label><input type="date" id="nApt"></div>
+                <div class="field"><label>Corte Proyectado</label><input type="number" id="nTotal" placeholder="460"></div>
+              </div>
+              <div class="field"><label>Fecha programada</label><input type="date" id="nFecha"></div>
+              <button class="btn btn-accent btn-full" id="btnCrearOrden" onclick="crearOrden()">＋ Crear orden</button>
+              <button class="btn btn-ghost btn-full" id="btnCancelarEdicion" style="display:none;margin-top:8px;" onclick="cancelarEdicion()">Cancelar edición</button>
+            </div>
+          </div>
         </div>
-        <div class="form-grid">
-          <div class="field"><label>Color *</label><input type="text" id="nColor" placeholder="VINO"></div>
-          <div class="field"><label>Artículo</label><input type="text" id="nArticulo" placeholder="ML1022"></div>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label>Modelo</label><input type="text" id="nModelo" placeholder="MANSELL"></div>
-          <div class="field"><label>Tipo prenda</label><input type="text" id="nTipo" placeholder="CAMISA"></div>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label>Canal</label><input type="text" id="nCanal" placeholder="MARCA"></div>
-          <div class="field"><label>Corte</label><input type="text" id="nCorte" placeholder="PLANTA"></div>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label>APT Target</label><input type="text" id="nApt" placeholder="7/09/2026"></div>
-          <div class="field"><label>Corte Proyectado</label><input type="number" id="nTotal" placeholder="460"></div>
-        </div>
-        <div class="field"><label>Fecha programada</label><input type="date" id="nFecha"></div>
-        <button class="btn btn-accent btn-full" id="btnCrearOrden" onclick="crearOrden()">＋ Crear orden</button>
-        <button class="btn btn-ghost btn-full" id="btnCancelarEdicion" style="display:none;margin-top:8px;" onclick="cancelarEdicion()">Cancelar edición</button>
-      </div>
 
-      <div class="sec-title">Órdenes activas</div>
-      <input type="text" class="search-box" id="searchIng" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderIngOrdenes()">
-      <div class="chips" id="chipsIngOrdenes">
-        <div class="chip active" onclick="setFilter('todas',this,'chipsIngOrdenes')">Todas</div>
-        <div class="chip" onclick="setFilter('pendiente',this,'chipsIngOrdenes')">Sin iniciar</div>
-        <div class="chip" onclick="setFilter('en_proceso',this,'chipsIngOrdenes')">En proceso</div>
-        <div class="chip" onclick="setFilter('completado',this,'chipsIngOrdenes')">Completadas</div>
+        <div class="sec-title">Órdenes activas</div>
+        <div id="listIngOrdenes" class="cards-grid scroll-section"></div>
       </div>
-      <div id="listIngOrdenes"></div>
     </div>
 
     <!-- INGENIERÍA: seguimiento -->
     <div id="scIngSeg" class="screen">
-      <input type="text" class="search-box" id="searchSeg" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderSeg()">
-      <div class="chips" id="chipsSeg">
-        <div class="chip active" onclick="setFilter('todas',this,'chipsSeg')">Todas</div>
-        <div class="chip" onclick="setFilter('alerta',this,'chipsSeg')">⚠ Alerta</div>
-        <div class="chip" onclick="setFilter('bloqueado',this,'chipsSeg')">🔒 Bloqueado</div>
-        <div class="chip" onclick="setFilter('completo',this,'chipsSeg')">✓ Completado</div>
+      <div class="screen-filters">
+        <input type="text" class="search-box" id="searchSeg" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderSeg()">
+        <div class="chips" id="chipsSeg">
+          <div class="chip active" onclick="setFilter('todas',this,'chipsSeg')">Todas</div>
+          <div class="chip" onclick="setFilter('alerta',this,'chipsSeg')">⚠ Alerta</div>
+          <div class="chip" onclick="setFilter('bloqueado',this,'chipsSeg')">🔒 Bloqueado</div>
+          <div class="chip" onclick="setFilter('completo',this,'chipsSeg')">✓ Completado</div>
+        </div>
       </div>
-      <div id="listSeg"></div>
+      <div class="screen-data">
+        <div id="listSeg" class="cards-grid scroll-section"></div>
+      </div>
     </div>
 
     <!-- INGENIERÍA: historial -->
     <div id="scIngHist" class="screen">
-      <div class="sec-title">Últimos 200 eventos — fecha y hora exacta</div>
-      <div class="chips" id="chipsHist">
-        <div class="chip active" onclick="setFilter('todas',this,'chipsHist')">Todas</div>
-        <div class="chip" onclick="setFilter('almacen',this,'chipsHist')">Almacén</div>
-        <div class="chip" onclick="setFilter('corte',this,'chipsHist')">Corte</div>
-        <div class="chip" onclick="setFilter('calidad',this,'chipsHist')">Calidad</div>
-        <div class="chip" onclick="setFilter('ingenieria',this,'chipsHist')">Ingeniería</div>
+      <div class="screen-filters">
+        <input type="text" class="search-box" id="searchHist" placeholder="Filtrar por Orden de Fabricación (OF)..." oninput="renderHist()">
+        <div class="chips" id="chipsHist">
+          <div class="chip active" onclick="setFilter('todas',this,'chipsHist')">Todas</div>
+          <div class="chip" onclick="setFilter('almacen',this,'chipsHist')">Almacén</div>
+          <div class="chip" onclick="setFilter('corte',this,'chipsHist')">Corte</div>
+          <div class="chip" onclick="setFilter('calidad',this,'chipsHist')">Calidad</div>
+          <div class="chip" onclick="setFilter('ingenieria',this,'chipsHist')">Ingeniería</div>
+        </div>
       </div>
-      <div class="card"><div id="listHist"></div></div>
+      <div class="screen-data">
+        <div class="sec-title">Últimos 200 eventos — fecha y hora exacta</div>
+        <div class="card card-wide scroll-section"><div id="listHist"></div></div>
+      </div>
     </div>
 
     <!-- INGENIERÍA: usuarios -->
     <div id="scIngUsers" class="screen">
-      <div class="sec-title">Nuevo usuario</div>
-      <div class="card">
-        <div class="form-grid">
-          <div class="field"><label>Nombre</label><input type="text" id="uNombre" placeholder="jperez"></div>
-          <div class="field"><label>Área</label>
-            <select id="uArea">
-              <option value="almacen">Almacén</option>
-              <option value="corte">Corte</option>
-              <option value="calidad">Calidad</option>
-              <option value="gerencia">Gerencia</option>
-              <option value="ingenieria">Ingeniería</option>
-            </select>
+      <div class="screen-filters">
+        <div class="chips" id="chipsUsers">
+          <div class="chip active" onclick="setFilter('todos',this,'chipsUsers')">Todos</div>
+          <div class="chip" onclick="setFilter('activos',this,'chipsUsers')">Activos</div>
+          <div class="chip" onclick="setFilter('inactivos',this,'chipsUsers')">Inactivos</div>
+          <div class="chip" onclick="setFilter('pin_pendiente',this,'chipsUsers')">PIN pendiente</div>
+        </div>
+      </div>
+      <div class="screen-data">
+        <div class="ing-layout">
+          <div class="ing-col">
+            <div class="sec-title">Nuevo usuario</div>
+            <div class="card">
+              <div class="form-grid">
+                <div class="field"><label>Nombre</label><input type="text" id="uNombre" placeholder="jperez"></div>
+                <div class="field"><label>Área</label>
+                  <select id="uArea">
+                    <option value="almacen">Almacén</option>
+                    <option value="corte">Corte</option>
+                    <option value="calidad">Calidad</option>
+                    <option value="gerencia">Gerencia</option>
+                    <option value="ingenieria">Ingeniería</option>
+                  </select>
+                </div>
+              </div>
+              <div class="import-sub" style="text-align:left;margin-bottom:10px;">El usuario nace con PIN <strong>1111</strong> y deberá cambiarlo en su primer ingreso.</div>
+              <button class="btn btn-accent btn-full" onclick="crearUsuario()">＋ Agregar usuario</button>
+            </div>
+          </div>
+          <div class="ing-col">
+            <div class="sec-title">Usuarios registrados</div>
+            <div id="listUsers" class="scroll-section"></div>
           </div>
         </div>
-        <div class="import-sub" style="text-align:left;margin-bottom:10px;">El usuario nace con PIN <strong>1111</strong> y deberá cambiarlo en su primer ingreso.</div>
-        <button class="btn btn-primary btn-full" onclick="crearUsuario()">＋ Agregar usuario</button>
       </div>
-      <div class="sec-title">Usuarios registrados</div>
-      <div class="chips" id="chipsUsers">
-        <div class="chip active" onclick="setFilter('todos',this,'chipsUsers')">Todos</div>
-        <div class="chip" onclick="setFilter('activos',this,'chipsUsers')">Activos</div>
-        <div class="chip" onclick="setFilter('inactivos',this,'chipsUsers')">Inactivos</div>
-        <div class="chip" onclick="setFilter('pin_pendiente',this,'chipsUsers')">PIN pendiente</div>
-      </div>
-      <div id="listUsers"></div>
     </div>
 
     <!-- DETALLE ORDEN (ingeniería / gerencia, solo lectura de estados) -->
     <div id="scIngDetalle" class="screen">
-      <div class="det-head">
-        <button class="btn-back" onclick="backIngDetalle()">←</button>
-        <div>
-          <div class="det-of" id="ingDetOf">—</div>
-          <div class="det-sub" id="ingDetSub">—</div>
+      <div class="screen-filters">
+        <div class="det-head">
+          <button class="btn-back" onclick="backIngDetalle()">←</button>
+          <div>
+            <div class="det-of" id="ingDetOf">—</div>
+            <div class="det-sub" id="ingDetSub">—</div>
+          </div>
         </div>
       </div>
-      <div id="ingDetBody"></div>
+      <div class="screen-data">
+        <div id="ingDetBody" class="detail-grid"></div>
+      </div>
     </div>
 
     <!-- GERENCIA: dashboard -->
     <div id="scGerencia" class="screen">
-      <div class="sec-title">Resumen de planta</div>
-      <div class="kpi-grid" id="kpiGrid"></div>
-      <div class="sec-title">Órdenes en alerta</div>
-      <div id="gerAlertas"></div>
-      <div class="sec-title">Órdenes bloqueadas</div>
-      <div id="gerBloqueadas"></div>
-      <div class="sec-title">Todas las órdenes</div>
-      <input type="text" class="search-box" id="searchGer" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderGerencia()">
-      <div id="gerTodas"></div>
+      <div class="screen-filters">
+        <input type="text" class="search-box" id="searchGer" placeholder="Buscar por OF, color, pedido o artículo..." oninput="renderGerencia()">
+        <div class="export-box">
+          <input type="date" id="excelFechaGer" title="Fecha del reporte Excel">
+          <button class="btn btn-sm btn-accent" onclick="descargarExcel('excelFechaGer')">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="screen-data">
+        <div class="sec-title">Resumen de planta</div>
+        <div class="kpi-grid" id="kpiGrid"></div>
+        <div class="sec-title">Órdenes en alerta</div>
+        <div id="gerAlertas" class="cards-grid scroll-section"></div>
+        <div class="sec-title">Órdenes bloqueadas</div>
+        <div id="gerBloqueadas" class="cards-grid scroll-section"></div>
+        <div class="sec-title">Todas las órdenes</div>
+        <div id="gerTodas" class="cards-grid scroll-section"></div>
+      </div>
     </div>
 
   </div>
@@ -224,7 +280,7 @@
     <div class="field"><label>Repetir PIN nuevo</label><input type="password" id="pinNuevo2" maxlength="6" inputmode="numeric"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="pinModalCancel" onclick="closePinModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="submitPinChange()">Guardar PIN</button>
+      <button class="btn btn-accent" onclick="submitPinChange()">Guardar PIN</button>
     </div>
   </div>
 </div>
@@ -235,7 +291,7 @@
     <h3 id="importModalTitle">Resultado de importación</h3>
     <div id="importModalBody"></div>
     <div class="modal-actions">
-      <button class="btn btn-primary btn-full" onclick="closeImportModal()">Entendido</button>
+      <button class="btn btn-accent btn-full" onclick="closeImportModal()">Entendido</button>
     </div>
   </div>
 </div>

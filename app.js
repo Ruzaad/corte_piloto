@@ -13,6 +13,9 @@ const DIAS_RECORDATORIO_PIN = 30;
 const SUBAREAS = {
   almacen_telas:      { label: 'Almacén Telas',      estados: ['ENTREGADO','FALTA NOTA DE ENTREGA','HABILITANDO'] },
   corte_planta:       { label: 'Corte Planta',        estados: ['EN PROCESO','ENTREGADO'] },
+  // Devolución de tela a almacén: es un movimiento OPCIONAL (no todas las
+  // órdenes devuelven tela), por eso no cuenta para el % de avance.
+  corte_devolucion:   { label: 'Corte Devolución',    estados: ['DEVOLUCIÓN A ALMACÉN'], opcional: true },
   calidad_corte:      { label: 'Calidad Corte',       estados: ['APROBADO','RECHAZADO'] },
   corte_complem:      { label: 'Corte Complem.',      estados: ['ENTREGADO A CALIDAD','ENTREGADO A PCP','FALTA RIBETE','FALTA PRETINA','FALTA RIBETE Y PRETINA'] },
   calidad_complem:    { label: 'Calidad Complem.',    estados: ['APROBADO','RECHAZADO'] },
@@ -27,7 +30,7 @@ const SUBAREAS = {
 // Área padre → subareas que puede editar
 const AREA_SUBAREAS = {
   almacen: ['almacen_telas','almacen_avios_cost','almacen_avios_acab'],
-  corte:   ['corte_planta','corte_complem','entrega_pl_tll'],
+  corte:   ['corte_planta','corte_devolucion','corte_complem','entrega_pl_tll'],
   calidad: ['calidad_corte','calidad_complem','calidad_avios_cost','calidad_avios_acab'],
 };
 
@@ -82,6 +85,41 @@ initTheme();
 // ─── LOGIN: usuario como texto libre (sin dropdown) ─────────
 // No se precarga ninguna lista; el usuario escribe su nombre.
 
+// ─── SESIÓN PERSISTENTE ──────────────────────────────────────
+// login_usuario() es una función propia (no Supabase Auth), así que el
+// cliente de Supabase nunca guarda un JWT/sesión por su cuenta: `session`
+// vivía solo en una variable de JS y se perdía con cada F5. La solución
+// no pasa por "separar vistas"; hay que persistirla nosotros mismos.
+const SESSION_KEY = 'smx_session';
+
+function guardarSesion() {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+function borrarSesionGuardada() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+async function restaurarSesion() {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (!raw) return;
+  let saved;
+  try { saved = JSON.parse(raw); } catch { borrarSesionGuardada(); return; }
+  if (!saved?.id) { borrarSesionGuardada(); return; }
+
+  // Revalidar contra el servidor: si el usuario fue desactivado o cambió
+  // de área desde el último login, no confiamos ciegamente en lo local.
+  const { data, error } = await sb.from('usuarios_login').select('*').eq('id', saved.id).maybeSingle();
+  if (error || !data) { borrarSesionGuardada(); return; }
+
+  session = { ...saved, nombre: data.nombre, area: data.area };
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('visible');
+  document.getElementById('topbarUser').textContent = `${session.nombre} · ${cap(session.area)}`;
+
+  buildTabs();
+  await syncFromServer();
+}
+
 // ─── LOGIN / LOGOUT ─────────────────────────────────────────
 async function doLogin() {
   const nombre = document.getElementById('loginUser').value.trim();
@@ -99,6 +137,7 @@ async function doLogin() {
   if (!data.ok) { toast(data.error, 'err'); return; }
 
   session = data;
+  guardarSesion();
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('visible');
   document.getElementById('topbarUser').textContent = `${session.nombre} · ${cap(session.area)}`;
@@ -122,6 +161,7 @@ async function doLogin() {
 function doLogout() {
   session = null; ordenes = []; eventos = [];
   estadoSelMap = {}; fotoB64Map = {};
+  borrarSesionGuardada();
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appShell').classList.remove('visible');
   document.getElementById('loginUser').value = '';
@@ -183,9 +223,24 @@ function setFilter(val, el, groupId) {
 }
 
 // ─── HELPERS DE ESTADO ──────────────────────────────────────
+// Eventos "auxiliares": registran información adicional (p.ej. el corte
+// real) bajo la MISMA subárea, pero no representan un cambio de estado.
+// Deben quedar en el historial, pero nunca deben ser considerados el
+// "estado actual" de la subárea, o el flujo se ve como incompleto aunque
+// ya se haya marcado ENTREGADO.
+function esEventoAuxiliar(estado) {
+  return typeof estado === 'string' && (
+    estado.startsWith('CORTE REAL REGISTRADO') ||
+    estado.startsWith('METROS DESPACHADOS REGISTRADOS') ||
+    estado.startsWith('METRAJE SOBRANTE REGISTRADO') ||
+    estado.startsWith('DEVOLUCIÓN REGISTRADA') ||
+    estado.startsWith('ENTREGA DETALLE')
+  );
+}
+
 function estadoActual(orden, subarea) {
   const evs = eventos
-    .filter(e => e.orden_id === orden.id && e.subarea === subarea)
+    .filter(e => e.orden_id === orden.id && e.subarea === subarea && !esEventoAuxiliar(e.estado))
     .sort((a,b) => new Date(b.creado_en) - new Date(a.creado_en));
   return evs[0] || null; // devuelve el evento completo (estado + fecha)
 }
@@ -197,10 +252,17 @@ function isFinal(estado) {
     || estado === 'ENTREGADO A CALIDAD' || estado === 'ENTREGADO A PCP';
 }
 
-function calcProgress(orden) {
-  const keys = Object.keys(SUBAREAS);
-  const done = keys.filter(k => isFinal(estadoActual(orden,k)?.estado)).length;
-  return Math.round((done / keys.length) * 100);
+// keys opcional: permite calcular el progreso solo sobre las subáreas
+// de un área madre (almacén/corte/calidad), en vez del flujo completo.
+// Las subáreas marcadas `opcional` (p.ej. Corte Devolución) no cuentan.
+function calcProgress(orden, keys) {
+  const ks = (keys || Object.keys(SUBAREAS)).filter(k => !SUBAREAS[k]?.opcional);
+  const done = ks.filter(k => isFinal(estadoActual(orden,k)?.estado)).length;
+  return Math.round((done / ks.length) * 100);
+}
+
+function subsProgreso(subs) {
+  return subs.filter(k => !SUBAREAS[k]?.opcional);
 }
 
 function matchesSearch(o, term) {
@@ -209,11 +271,80 @@ function matchesSearch(o, term) {
   return [o.of, o.color, o.nro_req, o.articulo].some(v => v && String(v).toLowerCase().includes(t));
 }
 
+// ─── FECHAS: parseo, orden y alertas ────────────────────────
+// La FECHA de entrega (fecha_programada) es la que manda el orden y las
+// alertas. apt_target es un dato aparte que también se muestra.
+// Ambos campos llegan en formatos mezclados: '2026-08-07 00:00:00'
+// (migración) o '7/09/2026' (digitado d/m/yyyy).
+function parseFechaFlex(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function fechaProg(o) { return parseFechaFlex(o?.fecha_programada); }
+function aptDate(o)   { return parseFechaFlex(o?.apt_target); }
+
+function diasParaFecha(o) {
+  const d = fechaProg(o);
+  if (!d) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  return Math.round((d - hoy) / 86400000);
+}
+
+// Orden por urgencia: FECHA programada más próxima primero; sin fecha al final.
+function ordenarPorFecha(lista) {
+  return [...lista].sort((a, b) => {
+    const da = fechaProg(a), db = fechaProg(b);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da - db;
+  });
+}
+
+// Aviso por fecha: FECHA vencida o a ≤7 días sin que la orden esté completa.
+function alertaPorFecha(orden) {
+  const dias = diasParaFecha(orden);
+  if (dias === null) return false;
+  return dias <= 7 && calcProgress(orden) < 100;
+}
+
+// Badge de FECHA (entrega) para las tarjetas: rojo = vencida o ≤7 días,
+// amarillo = ≤14 días, gris = con holgura o ya completada.
+function fechaBadgeHTML(o) {
+  if (!o.fecha_programada) return '';
+  const d = fechaProg(o);
+  const dias = diasParaFecha(o);
+  const txt = d ? d.toLocaleDateString('es-PE', { day:'2-digit', month:'short' }) : o.fecha_programada;
+  let cls = 'badge-gray';
+  if (dias !== null && calcProgress(o) < 100) {
+    if (dias <= 7)       cls = 'badge-red';
+    else if (dias <= 14) cls = 'badge-yellow';
+  }
+  const resto = dias === null ? '' : dias < 0 ? ` · vencido ${-dias}d` : ` · ${dias}d`;
+  return `<span class="badge ${cls}" style="margin:2px 2px 0 0;">FECHA ${txt}${resto}</span>`;
+}
+
+// Badge de APT (dato informativo, sin urgencia): siempre gris.
+function aptBadgeHTML(o) {
+  if (!o.apt_target) return '';
+  const d = aptDate(o);
+  const txt = d ? d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'2-digit' }) : o.apt_target;
+  return `<span class="badge badge-gray" style="margin:2px 2px 0 0;">APT ${txt}</span>`;
+}
+
 function tieneAlerta(orden) {
-  return Object.keys(SUBAREAS).some(k => {
+  const porEstado = Object.keys(SUBAREAS).some(k => {
     const est = estadoActual(orden,k)?.estado;
     return est && (est.includes('RECHAZADO') || est.includes('FALTA') || est === 'FALTANTE');
   });
+  return porEstado || alertaPorFecha(orden);
 }
 
 function estaBloqueada(orden) {
@@ -224,21 +355,42 @@ function estaBloqueada(orden) {
   });
 }
 
-function badgeForEstado(est) {
-  if (!est) return 'badge-gray';
-  if (est === 'APROBADO' || est.startsWith('ENTREGADO') || est.startsWith('ENTR.')) return 'badge-green';
-  if (est === 'RECHAZADO' || est === 'FALTANTE') return 'badge-red';
-  if (est.startsWith('FALTA')) return 'badge-yellow';
-  return 'badge-blue';
+// Color exacto por estado (definido por Ingeniería/Gerencia):
+//  Almacén: FALTA NOTA DE ENTREGA=rojo · HABILITANDO=azul · ENTREGADO=verde
+//  Corte:   EN PROCESO=azul · ENTREGADO=verde · ENTREGADO A CALIDAD=verde
+//           ENTREGADO A PCP=amarillo · FALTA RIBETE/PRETINA/RIBETE Y PRETINA=rojo
+//  Calidad: APROBADO=verde · RECHAZADO=rojo (FALTANTE se trata igual que RECHAZADO)
+const ESTADO_COLOR = {
+  'FALTA NOTA DE ENTREGA':   'red',
+  'HABILITANDO':             'blue',
+  'ENTREGADO':               'green',
+  'EN PROCESO':              'blue',
+  'ENTREGADO A CALIDAD':     'green',
+  'ENTREGADO A PCP':         'yellow',
+  'FALTA RIBETE':            'red',
+  'FALTA PRETINA':           'red',
+  'FALTA RIBETE Y PRETINA':  'red',
+  'APROBADO':                'green',
+  'RECHAZADO':               'red',
+  'FALTANTE':                'red',
+  'ENTR. PLANTA':            'green',
+  'ENTR. TALLER':            'green',
+  'DEVOLUCIÓN A ALMACÉN':    'blue',
+};
+function colorForEstado(est) {
+  if (!est || esEventoAuxiliar(est)) return 'gray';
+  return ESTADO_COLOR[est] || 'blue';
 }
+
+function badgeForEstado(est) { return 'badge-' + colorForEstado(est); }
 
 function selClass(est) {
   if (!est) return '';
-  if (est === 'APROBADO') return 'sel-aprobado';
-  if (est === 'RECHAZADO' || est === 'FALTANTE') return 'sel-rechazado';
-  if (est.startsWith('FALTA')) return 'sel-falta';
-  if (est.startsWith('ENTREGADO') || est.startsWith('ENTR.')) return 'sel-entregado';
-  return 'sel-default';
+  const c = colorForEstado(est);
+  if (c === 'green')  return 'sel-aprobado';
+  if (c === 'red')    return 'sel-rechazado';
+  if (c === 'yellow') return 'sel-falta';
+  return 'sel-entregado';
 }
 
 function misSubareas() {
@@ -249,14 +401,17 @@ function misSubareas() {
 function renderOrdenes() {
   const el = document.getElementById('listOrdenes');
   const subs = misSubareas();
+  const subsProg = subsProgreso(subs); // el avance solo cuenta subáreas obligatorias
   const term = document.getElementById('searchEnc')?.value || '';
   let lista = ordenes.filter(o => !o.archivado && matchesSearch(o, term));
 
   const estadoDeMisSubs = o => subs.map(s => estadoActual(o,s)?.estado).filter(Boolean);
 
   if (filterEnc === 'pendiente')  lista = lista.filter(o => estadoDeMisSubs(o).length === 0);
-  if (filterEnc === 'en_proceso') lista = lista.filter(o => { const e = estadoDeMisSubs(o); return e.length > 0 && !subs.every(s => isFinal(estadoActual(o,s)?.estado)); });
-  if (filterEnc === 'completado') lista = lista.filter(o => subs.every(s => isFinal(estadoActual(o,s)?.estado)));
+  if (filterEnc === 'en_proceso') lista = lista.filter(o => { const e = estadoDeMisSubs(o); return e.length > 0 && !subsProg.every(s => isFinal(estadoActual(o,s)?.estado)); });
+  if (filterEnc === 'completado') lista = lista.filter(o => subsProg.every(s => isFinal(estadoActual(o,s)?.estado)));
+
+  lista = ordenarPorFecha(lista); // más urgente (FECHA más próxima) primero
 
   if (!lista.length) {
     el.innerHTML = emptyHTML('📋','Sin órdenes','No hay órdenes en este filtro');
@@ -264,7 +419,7 @@ function renderOrdenes() {
   }
 
   el.innerHTML = lista.map(o => {
-    const pct = calcProgress(o);
+    const pct = calcProgress(o, subs);
     const badges = subs.map(s => {
       const ev = estadoActual(o,s);
       if (!ev) return '';
@@ -278,7 +433,7 @@ function renderOrdenes() {
         </div>
         <div class="card-arrow">›</div>
       </div>
-      <div style="margin-top:6px;display:flex;flex-wrap:wrap;">${badges || '<span class="badge badge-gray">SIN REGISTRO</span>'}</div>
+      <div style="margin-top:6px;display:flex;flex-wrap:wrap;">${fechaBadgeHTML(o)}${aptBadgeHTML(o)}${badges || '<span class="badge badge-gray">SIN REGISTRO</span>'}</div>
       <div class="prog-wrap">
         <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
         <div class="prog-label">${pct}% del flujo completado</div>
@@ -325,6 +480,12 @@ function renderDetalleBody() {
     if (evActual) {
       inner += `<div class="sub-ts" style="margin-bottom:8px;">Último cambio: ${fmtTS(evActual.creado_en)} · ${evActual.usuario}</div>`;
     }
+    if (key === 'corte_devolucion' && o.metros_devueltos != null) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">↩ Total devuelto: ${o.metros_devueltos} m${o.metros_despachados != null ? ` · Despachado: ${o.metros_despachados} m` : ''}</div>`;
+    }
+    if (key === 'entrega_pl_tll' && o.entrega_detalle) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">📦 Entrega: ${o.entrega_detalle}</div>`;
+    }
 
     if (bloqueado) {
       inner += `<div class="lock-notice">⚠ Requiere ${SUBAREAS[req.subarea].label} = ${req.estado}</div>`;
@@ -332,16 +493,54 @@ function renderDetalleBody() {
       inner += `<div class="estado-grid">
         ${sub.estados.map(e => {
           let cls = sel === e ? selClass(e) : '';
-          if (!sel && evActual?.estado === e) cls += ' is-current';
+          if (!sel && evActual?.estado === e) cls = selClass(e) + ' is-current';
           return `<button class="btn-estado ${cls}" onclick="selEstado('${key}','${e.replace(/'/g,"\\'")}')">${e}</button>`;
         }).join('')}
       </div>`;
 
       if (key === 'corte_planta' && sel === 'ENTREGADO') {
         const actual = o.corte_real ?? o.corte_proyectado ?? '';
+        const sobrante = o.metraje_sobrante ?? '';
         inner += `<div class="field" style="margin-top:12px;">
           <label>Corte Real (unidades cortadas)</label>
           <input type="number" id="corteRealInput" placeholder="Proyectado: ${o.corte_proyectado ?? '—'}" value="${actual}">
+        </div>
+        <div class="field">
+          <label>Metraje de tela sobrante (m)</label>
+          <input type="number" step="0.01" id="metrajeSobranteInput" placeholder="0" value="${sobrante}">
+        </div>`;
+      }
+
+      if (key === 'almacen_telas' && sel === 'ENTREGADO') {
+        const metros = o.metros_despachados ?? '';
+        inner += `<div class="field" style="margin-top:12px;">
+          <label>Metros despachados</label>
+          <input type="number" step="0.01" id="metrosDespachadosInput" placeholder="0" value="${metros}">
+        </div>`;
+      }
+
+      if (key === 'corte_devolucion' && sel === 'DEVOLUCIÓN A ALMACÉN') {
+        inner += `<div class="field" style="margin-top:12px;">
+          <label>Metros de tela devueltos a Almacén</label>
+          <input type="number" step="0.01" id="metrosDevueltosInput" placeholder="0">
+        </div>`;
+      }
+
+      if (key === 'entrega_pl_tll' && sel === 'ENTR. PLANTA') {
+        inner += `<div class="field" style="margin-top:12px;">
+          <label>Tipo de prenda entregada</label>
+          <select id="entregaPrendaInput">
+            <option value="">Selecciona…</option>
+            <option ${o.entrega_detalle==='Saco'?'selected':''}>Saco</option>
+            <option ${o.entrega_detalle==='Pantalon'?'selected':''}>Pantalon</option>
+            <option ${o.entrega_detalle==='Camisa'?'selected':''}>Camisa</option>
+          </select>
+        </div>`;
+      }
+      if (key === 'entrega_pl_tll' && sel === 'ENTR. TALLER') {
+        inner += `<div class="field" style="margin-top:12px;">
+          <label>¿A qué taller se entregó?</label>
+          <input type="text" id="entregaTallerInput" placeholder="Nombre del taller" value="${o.entrega_detalle ? String(o.entrega_detalle).replace(/"/g,'&quot;') : ''}">
         </div>`;
       }
 
@@ -389,13 +588,50 @@ async function guardarEstado(subarea) {
   const estado = estadoSelMap[subarea];
   if (!estado) { toast('Selecciona un estado', 'warn'); return; }
 
-  // Corte Real: solo aplica en corte_planta al pasar a ENTREGADO
+  // Corte Real + metraje sobrante: solo aplica en corte_planta al pasar a ENTREGADO
   let corteReal = null;
+  let metrajeSobrante = null;
   if (subarea === 'corte_planta' && estado === 'ENTREGADO') {
     const input = document.getElementById('corteRealInput');
     const val = input ? parseInt(input.value) : NaN;
     if (isNaN(val) || val < 0) { toast('Ingresa el Corte Real (unidades cortadas)', 'warn'); return; }
     corteReal = val;
+
+    const inputSobrante = document.getElementById('metrajeSobranteInput');
+    const valSobrante = inputSobrante ? parseFloat(inputSobrante.value) : NaN;
+    if (isNaN(valSobrante) || valSobrante < 0) { toast('Ingresa el metraje de tela sobrante', 'warn'); return; }
+    metrajeSobrante = valSobrante;
+  }
+
+  // Metros despachados: solo aplica en almacen_telas al pasar a ENTREGADO
+  let metrosDespachados = null;
+  if (subarea === 'almacen_telas' && estado === 'ENTREGADO') {
+    const inputMetros = document.getElementById('metrosDespachadosInput');
+    const valMetros = inputMetros ? parseFloat(inputMetros.value) : NaN;
+    if (isNaN(valMetros) || valMetros < 0) { toast('Ingresa los metros despachados', 'warn'); return; }
+    metrosDespachados = valMetros;
+  }
+
+  // Devolución: cada registro es un movimiento que SUMA al total devuelto
+  let metrosDevueltos = null;
+  if (subarea === 'corte_devolucion' && estado === 'DEVOLUCIÓN A ALMACÉN') {
+    const inputDev = document.getElementById('metrosDevueltosInput');
+    const valDev = inputDev ? parseFloat(inputDev.value) : NaN;
+    if (isNaN(valDev) || valDev <= 0) { toast('Ingresa los metros devueltos a Almacén', 'warn'); return; }
+    metrosDevueltos = valDev;
+  }
+
+  // Entrega PL/TLL: prenda (planta) o nombre de taller (taller)
+  let entregaDetalle = null;
+  if (subarea === 'entrega_pl_tll' && estado === 'ENTR. PLANTA') {
+    const v = document.getElementById('entregaPrendaInput')?.value || '';
+    if (!v) { toast('Selecciona el tipo de prenda (Saco / Pantalón / Camisa)', 'warn'); return; }
+    entregaDetalle = v;
+  }
+  if (subarea === 'entrega_pl_tll' && estado === 'ENTR. TALLER') {
+    const v = (document.getElementById('entregaTallerInput')?.value || '').trim();
+    if (!v) { toast('Escribe a qué taller se entregó', 'warn'); return; }
+    entregaDetalle = v;
   }
 
   setSyncBar('syncing');
@@ -436,11 +672,50 @@ async function guardarEstado(subarea) {
       usuario: session.nombre,
     });
   }
+  if (metrajeSobrante !== null) {
+    await sb.from('ordenes').update({ metraje_sobrante: metrajeSobrante }).eq('id', ordenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ordenDetalle.id,
+      subarea: 'corte_planta',
+      estado: `METRAJE SOBRANTE REGISTRADO: ${metrajeSobrante} m`,
+      usuario: session.nombre,
+    });
+  }
+  if (metrosDespachados !== null) {
+    await sb.from('ordenes').update({ metros_despachados: metrosDespachados }).eq('id', ordenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ordenDetalle.id,
+      subarea: 'almacen_telas',
+      estado: `METROS DESPACHADOS REGISTRADOS: ${metrosDespachados} m`,
+      usuario: session.nombre,
+    });
+  }
+  if (metrosDevueltos !== null) {
+    const totalDevuelto = +((parseFloat(ordenDetalle.metros_devueltos) || 0) + metrosDevueltos).toFixed(2);
+    await sb.from('ordenes').update({ metros_devueltos: totalDevuelto }).eq('id', ordenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ordenDetalle.id,
+      subarea: 'corte_devolucion',
+      estado: `DEVOLUCIÓN REGISTRADA: ${metrosDevueltos} m (acumulado ${totalDevuelto} m)`,
+      usuario: session.nombre,
+    });
+  }
+  if (entregaDetalle !== null) {
+    await sb.from('ordenes').update({ entrega_detalle: entregaDetalle }).eq('id', ordenDetalle.id);
+    const etiqueta = estado === 'ENTR. PLANTA' ? 'Prenda' : 'Taller';
+    await sb.from('eventos').insert({
+      orden_id: ordenDetalle.id,
+      subarea: 'entrega_pl_tll',
+      estado: `ENTREGA DETALLE: ${etiqueta} → ${entregaDetalle}`,
+      usuario: session.nombre,
+    });
+  }
 
   delete estadoSelMap[subarea];
   setSyncBar('');
   toast(`${SUBAREAS[subarea].label} → ${estado} ✓`, 'ok');
   await syncFromServer();
+  ordenDetalle = ordenes.find(x => x.id === ordenDetalle.id) || ordenDetalle;
   renderDetalleBody();
 }
 
@@ -636,6 +911,8 @@ function renderIngOrdenes() {
   if (filterIng === 'en_proceso') lista = lista.filter(o => { const p = calcProgress(o); return p > 0 && p < 100; });
   if (filterIng === 'completado') lista = lista.filter(o => calcProgress(o) === 100);
 
+  lista = ordenarPorFecha(lista);
+
   if (!lista.length) { el.innerHTML = emptyHTML('📦','Sin órdenes','Crea una o importa un Excel'); return; }
 
   el.innerHTML = lista.map(o => {
@@ -644,7 +921,7 @@ function renderIngOrdenes() {
       <div class="card-head">
         <div style="min-width:0;">
           <div class="card-of">${o.of}</div>
-          <div class="card-meta">${o.articulo||'—'} · ${o.color} · ${o.corte_proyectado||'—'} uds · Req. ${o.nro_req} · ${o.fecha_programada||'—'}</div>
+          <div class="card-meta">${o.articulo||'—'} · ${o.color} · ${o.corte_proyectado||'—'} uds · Req. ${o.nro_req}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           <span class="badge ${pct===100?'badge-green':pct>0?'badge-blue':'badge-gray'}">${pct}%</span>
@@ -654,6 +931,7 @@ function renderIngOrdenes() {
           </div>
         </div>
       </div>
+      <div style="margin-top:6px;display:flex;flex-wrap:wrap;">${fechaBadgeHTML(o)}${aptBadgeHTML(o)}</div>
       <div class="prog-wrap">
         <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
       </div>
@@ -673,7 +951,9 @@ function editarOrden(id) {
   document.getElementById('nTipo').value = o.tipo_prenda || '';
   document.getElementById('nCanal').value = o.canal || '';
   document.getElementById('nCorte').value = o.corte || '';
-  document.getElementById('nApt').value = o.apt_target || '';
+  // nApt es un input date: normalizamos a yyyy-mm-dd para que lo acepte.
+  const aptD = aptDate(o);
+  document.getElementById('nApt').value = aptD ? fechaLocalISO(aptD) : '';
   document.getElementById('nTotal').value = o.corte_proyectado || '';
   document.getElementById('nFecha').value = o.fecha_programada || '';
   document.getElementById('btnCrearOrden').textContent = `✓ Guardar cambios — ${o.of}`;
@@ -726,14 +1006,16 @@ function abrirIngDetalle(id, returnScreen) {
       const est  = ev?.estado;
       const req  = sub.requiere;
       const bloq = req && estadoActual(o, req.subarea)?.estado !== req.estado;
-      const cls  = isFinal(est) ? 'done'
-                 : est && (est.includes('RECHAZADO')||est.includes('FALTA')) ? 'rejected'
-                 : est ? 'progress'
-                 : bloq ? 'locked' : '';
+      const colorCls = { green:'done', red:'rejected', yellow:'alert', blue:'progress', gray:'' }[colorForEstado(est)];
+      const cls  = (bloq && !est) ? 'locked' : colorCls;
       return `<div class="sub-card ${cls}">
         <div class="sub-name">${sub.label}</div>
         <div class="sub-state">${bloq && !est ? '🔒 Bloqueado' : (est || '— Sin estado')}</div>
         ${key === 'corte_planta' && o.corte_real != null ? `<div class="sub-ts">✂️ Corte Real: ${o.corte_real} uds (Proyectado: ${o.corte_proyectado ?? '—'})</div>` : ''}
+        ${key === 'corte_planta' && o.metraje_sobrante != null ? `<div class="sub-ts">🧵 Tela sobrante: ${o.metraje_sobrante} m</div>` : ''}
+        ${key === 'almacen_telas' && o.metros_despachados != null ? `<div class="sub-ts">📏 Metros despachados: ${o.metros_despachados} m</div>` : ''}
+        ${key === 'corte_devolucion' && o.metros_devueltos != null ? `<div class="sub-ts">↩ Total devuelto: ${o.metros_devueltos} m</div>` : ''}
+        ${key === 'entrega_pl_tll' && o.entrega_detalle ? `<div class="sub-ts">📦 Entrega: ${o.entrega_detalle}</div>` : ''}
         ${ev ? `<div class="sub-ts">📅 ${fmtTS(ev.creado_en)} · ${ev.usuario}</div>` : ''}
       </div>`;
     }).join('');
@@ -765,6 +1047,18 @@ function renderIngDetalleBody() {
     if (key === 'corte_planta' && o.corte_real != null) {
       inner += `<div class="sub-ts" style="margin-bottom:8px;">✂️ Corte Real: ${o.corte_real} uds (Proyectado: ${o.corte_proyectado ?? '—'})</div>`;
     }
+    if (key === 'corte_planta' && o.metraje_sobrante != null) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">🧵 Tela sobrante: ${o.metraje_sobrante} m</div>`;
+    }
+    if (key === 'almacen_telas' && o.metros_despachados != null) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">📏 Metros despachados: ${o.metros_despachados} m</div>`;
+    }
+    if (key === 'corte_devolucion' && o.metros_devueltos != null) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">↩ Total devuelto: ${o.metros_devueltos} m</div>`;
+    }
+    if (key === 'entrega_pl_tll' && o.entrega_detalle) {
+      inner += `<div class="sub-ts" style="margin-bottom:8px;">📦 Entrega: ${o.entrega_detalle}</div>`;
+    }
     if (req) {
       const reqOK = estadoActual(o, req.subarea)?.estado === req.estado;
       if (!reqOK) inner += `<div class="lock-notice">ℹ Normalmente requiere ${SUBAREAS[req.subarea].label} = ${req.estado} — como Ingeniería, puedes forzar el cambio igual.</div>`;
@@ -773,16 +1067,54 @@ function renderIngDetalleBody() {
     inner += `<div class="estado-grid">
       ${sub.estados.map(e => {
         let cls = sel === e ? selClass(e) : '';
-        if (!sel && evActual?.estado === e) cls += ' is-current';
+        if (!sel && evActual?.estado === e) cls = selClass(e) + ' is-current';
         return `<button class="btn-estado ${cls}" onclick="selEstadoAdmin('${key}','${e.replace(/'/g,"\\'")}')">${e}</button>`;
       }).join('')}
     </div>`;
 
     if (key === 'corte_planta' && sel === 'ENTREGADO') {
       const actual = o.corte_real ?? o.corte_proyectado ?? '';
+      const sobrante = o.metraje_sobrante ?? '';
       inner += `<div class="field" style="margin-top:12px;">
         <label>Corte Real (unidades cortadas)</label>
         <input type="number" id="corteRealInputAdmin" placeholder="Proyectado: ${o.corte_proyectado ?? '—'}" value="${actual}">
+      </div>
+      <div class="field">
+        <label>Metraje de tela sobrante (m)</label>
+        <input type="number" step="0.01" id="metrajeSobranteInputAdmin" placeholder="0" value="${sobrante}">
+      </div>`;
+    }
+
+    if (key === 'almacen_telas' && sel === 'ENTREGADO') {
+      const metros = o.metros_despachados ?? '';
+      inner += `<div class="field" style="margin-top:12px;">
+        <label>Metros despachados</label>
+        <input type="number" step="0.01" id="metrosDespachadosInputAdmin" placeholder="0" value="${metros}">
+      </div>`;
+    }
+
+    if (key === 'corte_devolucion' && sel === 'DEVOLUCIÓN A ALMACÉN') {
+      inner += `<div class="field" style="margin-top:12px;">
+        <label>Metros de tela devueltos a Almacén</label>
+        <input type="number" step="0.01" id="metrosDevueltosInputAdmin" placeholder="0">
+      </div>`;
+    }
+
+    if (key === 'entrega_pl_tll' && sel === 'ENTR. PLANTA') {
+      inner += `<div class="field" style="margin-top:12px;">
+        <label>Tipo de prenda entregada</label>
+        <select id="entregaPrendaInputAdmin">
+          <option value="">Selecciona…</option>
+          <option ${o.entrega_detalle==='Saco'?'selected':''}>Saco</option>
+          <option ${o.entrega_detalle==='Pantalon'?'selected':''}>Pantalon</option>
+          <option ${o.entrega_detalle==='Camisa'?'selected':''}>Camisa</option>
+        </select>
+      </div>`;
+    }
+    if (key === 'entrega_pl_tll' && sel === 'ENTR. TALLER') {
+      inner += `<div class="field" style="margin-top:12px;">
+        <label>¿A qué taller se entregó?</label>
+        <input type="text" id="entregaTallerInputAdmin" placeholder="Nombre del taller" value="${o.entrega_detalle ? String(o.entrega_detalle).replace(/"/g,'&quot;') : ''}">
       </div>`;
     }
 
@@ -830,11 +1162,45 @@ async function guardarEstadoAdmin(subarea) {
   if (!estado) { toast('Selecciona un estado', 'warn'); return; }
 
   let corteReal = null;
+  let metrajeSobrante = null;
   if (subarea === 'corte_planta' && estado === 'ENTREGADO') {
     const input = document.getElementById('corteRealInputAdmin');
     const val = input ? parseInt(input.value) : NaN;
     if (isNaN(val) || val < 0) { toast('Ingresa el Corte Real (unidades cortadas)', 'warn'); return; }
     corteReal = val;
+
+    const inputSobrante = document.getElementById('metrajeSobranteInputAdmin');
+    const valSobrante = inputSobrante ? parseFloat(inputSobrante.value) : NaN;
+    if (isNaN(valSobrante) || valSobrante < 0) { toast('Ingresa el metraje de tela sobrante', 'warn'); return; }
+    metrajeSobrante = valSobrante;
+  }
+
+  let metrosDespachados = null;
+  if (subarea === 'almacen_telas' && estado === 'ENTREGADO') {
+    const inputMetros = document.getElementById('metrosDespachadosInputAdmin');
+    const valMetros = inputMetros ? parseFloat(inputMetros.value) : NaN;
+    if (isNaN(valMetros) || valMetros < 0) { toast('Ingresa los metros despachados', 'warn'); return; }
+    metrosDespachados = valMetros;
+  }
+
+  let metrosDevueltos = null;
+  if (subarea === 'corte_devolucion' && estado === 'DEVOLUCIÓN A ALMACÉN') {
+    const inputDev = document.getElementById('metrosDevueltosInputAdmin');
+    const valDev = inputDev ? parseFloat(inputDev.value) : NaN;
+    if (isNaN(valDev) || valDev <= 0) { toast('Ingresa los metros devueltos a Almacén', 'warn'); return; }
+    metrosDevueltos = valDev;
+  }
+
+  let entregaDetalle = null;
+  if (subarea === 'entrega_pl_tll' && estado === 'ENTR. PLANTA') {
+    const v = document.getElementById('entregaPrendaInputAdmin')?.value || '';
+    if (!v) { toast('Selecciona el tipo de prenda (Saco / Pantalón / Camisa)', 'warn'); return; }
+    entregaDetalle = v;
+  }
+  if (subarea === 'entrega_pl_tll' && estado === 'ENTR. TALLER') {
+    const v = (document.getElementById('entregaTallerInputAdmin')?.value || '').trim();
+    if (!v) { toast('Escribe a qué taller se entregó', 'warn'); return; }
+    entregaDetalle = v;
   }
 
   setSyncBar('syncing');
@@ -863,6 +1229,40 @@ async function guardarEstadoAdmin(subarea) {
       usuario: `${session.nombre} (admin)`,
     });
   }
+  if (metrajeSobrante !== null) {
+    await sb.from('ordenes').update({ metraje_sobrante: metrajeSobrante }).eq('id', ingOrdenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ingOrdenDetalle.id, subarea: 'corte_planta',
+      estado: `METRAJE SOBRANTE REGISTRADO: ${metrajeSobrante} m`,
+      usuario: `${session.nombre} (admin)`,
+    });
+  }
+  if (metrosDespachados !== null) {
+    await sb.from('ordenes').update({ metros_despachados: metrosDespachados }).eq('id', ingOrdenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ingOrdenDetalle.id, subarea: 'almacen_telas',
+      estado: `METROS DESPACHADOS REGISTRADOS: ${metrosDespachados} m`,
+      usuario: `${session.nombre} (admin)`,
+    });
+  }
+  if (metrosDevueltos !== null) {
+    const totalDevuelto = +((parseFloat(ingOrdenDetalle.metros_devueltos) || 0) + metrosDevueltos).toFixed(2);
+    await sb.from('ordenes').update({ metros_devueltos: totalDevuelto }).eq('id', ingOrdenDetalle.id);
+    await sb.from('eventos').insert({
+      orden_id: ingOrdenDetalle.id, subarea: 'corte_devolucion',
+      estado: `DEVOLUCIÓN REGISTRADA: ${metrosDevueltos} m (acumulado ${totalDevuelto} m)`,
+      usuario: `${session.nombre} (admin)`,
+    });
+  }
+  if (entregaDetalle !== null) {
+    await sb.from('ordenes').update({ entrega_detalle: entregaDetalle }).eq('id', ingOrdenDetalle.id);
+    const etiqueta = estado === 'ENTR. PLANTA' ? 'Prenda' : 'Taller';
+    await sb.from('eventos').insert({
+      orden_id: ingOrdenDetalle.id, subarea: 'entrega_pl_tll',
+      estado: `ENTREGA DETALLE: ${etiqueta} → ${entregaDetalle}`,
+      usuario: `${session.nombre} (admin)`,
+    });
+  }
 
   delete adminEstadoSelMap[subarea];
   setSyncBar('');
@@ -888,28 +1288,34 @@ function renderSeg() {
   if (filterSeg === 'bloqueado') lista = lista.filter(estaBloqueada);
   if (filterSeg === 'completo')  lista = lista.filter(o => calcProgress(o) === 100);
 
+  lista = ordenarPorFecha(lista);
+
   if (!lista.length) { el.innerHTML = emptyHTML('✅','Sin resultados',''); return; }
 
   el.innerHTML = lista.map(o => segCardHTML(o)).join('');
 }
 
+// Tarjeta compacta: para no saturar la vista solo se muestran la FECHA/APT
+// y los estados problemáticos (rojos/amarillos); el resto se resume en el %.
 function segCardHTML(o) {
   const pct = calcProgress(o);
-  const badges = Object.entries(SUBAREAS).map(([key]) => {
+  const problemas = Object.keys(SUBAREAS).map(key => {
     const ev = estadoActual(o, key);
     if (!ev) return '';
-    return `<span class="badge ${badgeForEstado(ev.estado)}" style="margin:2px;">${ev.estado}</span>`;
+    const c = colorForEstado(ev.estado);
+    if (c !== 'red' && c !== 'yellow') return '';
+    return `<span class="badge badge-${c}" style="margin:2px 2px 0 0;">${SUBAREAS[key].label}: ${ev.estado}</span>`;
   }).filter(Boolean).join('');
 
   return `<div class="card card-clickable" onclick="abrirIngDetalle('${o.id}')">
     <div class="card-head">
       <div style="min-width:0;">
         <div class="card-of">${o.of}</div>
-        <div class="card-meta">${o.color} · ${o.articulo||'—'} · ${o.corte_proyectado||'—'} uds · ${o.fecha_programada||'—'}</div>
+        <div class="card-meta">${o.color} · ${o.articulo||'—'} · ${o.corte_proyectado||'—'} uds</div>
       </div>
       <span class="badge ${pct===100?'badge-green':pct>0?'badge-blue':'badge-gray'}">${pct}%</span>
     </div>
-    <div style="margin:8px 0;display:flex;flex-wrap:wrap;">${badges||'<span style="font-size:12px;color:var(--text-faint)">Sin actividad</span>'}</div>
+    <div style="margin-top:8px;display:flex;flex-wrap:wrap;">${fechaBadgeHTML(o)}${aptBadgeHTML(o)}${problemas}</div>
     <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div></div>
   </div>`;
 }
@@ -918,6 +1324,15 @@ function segCardHTML(o) {
 function renderHist() {
   const el = document.getElementById('listHist');
   let lista = [...eventos].sort((a,b) => new Date(b.creado_en)-new Date(a.creado_en));
+
+  // Filtro por Orden de Fabricación (OF)
+  const termOF = (document.getElementById('searchHist')?.value || '').toLowerCase().trim();
+  if (termOF) {
+    lista = lista.filter(ev => {
+      const o = ordenes.find(x => x.id === ev.orden_id);
+      return o?.of && String(o.of).toLowerCase().includes(termOF);
+    });
+  }
 
   if (filterHist !== 'todas') {
     const grupo = filterHist === 'ingenieria' ? ['ingenieria'] : (AREA_SUBAREAS[filterHist] || []);
@@ -928,8 +1343,9 @@ function renderHist() {
   if (!lista.length) { el.innerHTML = emptyHTML('📜','Sin eventos',''); return; }
   el.innerHTML = lista.map(ev => {
     const o = ordenes.find(x => x.id === ev.orden_id);
+    const dotColor = { green:'var(--green)', red:'var(--red)', yellow:'var(--yellow)', blue:'var(--status-blue)', gray:'var(--text-faint)' }[colorForEstado(ev.estado)];
     return `<div class="hist-item">
-      <div class="hist-dot"></div>
+      <div class="hist-dot" style="background:${dotColor}"></div>
       <div>
         <div class="hist-main">${o?.of||'—'} · ${SUBAREAS[ev.subarea]?.label||cap(ev.subarea)} → ${ev.estado}</div>
         <div class="hist-meta">📅 ${fmtTS(ev.creado_en)} · 👤 ${ev.usuario}</div>
@@ -940,12 +1356,12 @@ function renderHist() {
 
 // ─── GERENCIA: DASHBOARD ────────────────────────────────────
 function renderGerencia() {
-  const activas    = ordenes.filter(o => !o.archivado);
+  const term       = document.getElementById('searchGer')?.value || '';
+  // El buscador filtra TODO el panel (KPIs, alertas, bloqueadas y el listado).
+  const activas    = ordenarPorFecha(ordenes.filter(o => !o.archivado && matchesSearch(o, term)));
   const alertas    = activas.filter(tieneAlerta);
   const bloqueadas = activas.filter(estaBloqueada);
   const completas  = activas.filter(o => calcProgress(o) === 100);
-  const term       = document.getElementById('searchGer')?.value || '';
-  const filtradas  = activas.filter(o => matchesSearch(o, term));
 
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi"><div class="kpi-num">${activas.length}</div><div class="kpi-label">Órdenes activas</div></div>
@@ -955,7 +1371,80 @@ function renderGerencia() {
 
   document.getElementById('gerAlertas').innerHTML    = alertas.length    ? alertas.map(segCardHTML).join('')    : emptyHTML('✅','Sin alertas','');
   document.getElementById('gerBloqueadas').innerHTML = bloqueadas.length ? bloqueadas.map(segCardHTML).join('') : emptyHTML('🔓','Nada bloqueado','');
-  document.getElementById('gerTodas').innerHTML      = filtradas.length  ? filtradas.map(segCardHTML).join('')  : emptyHTML('📦','Sin resultados','');
+  document.getElementById('gerTodas').innerHTML      = activas.length    ? activas.map(segCardHTML).join('')    : emptyHTML('📦','Sin resultados','');
+}
+
+// ─── EXPORTAR EXCEL (ingeniería / gerencia) ─────────────────
+// Reporte de MOVIMIENTOS del día seleccionado: incluye toda OF que haya
+// tenido al menos un evento (creado_en) en esa fecha, SIEMPRE que Almacén
+// Telas ya le haya registrado sus metros despachados. Muestra los datos de
+// la OF + metros despachados, devueltos y el cálculo de metros usados.
+function hoyISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Fecha local (yyyy-mm-dd) de un timestamp, sin desfase por zona horaria.
+function fechaLocalISO(ts) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function descargarExcel(idFecha) {
+  const fecha = document.getElementById(idFecha)?.value;
+  if (!fecha) { toast('Selecciona la fecha del reporte', 'warn'); return; }
+
+  // Órdenes con al menos un movimiento (evento) en la fecha seleccionada.
+  const ordenIdsConMov = new Set(
+    eventos.filter(e => fechaLocalISO(e.creado_en) === fecha).map(e => e.orden_id)
+  );
+
+  // …y que además ya tengan metros despachados por Almacén Telas.
+  const lista = ordenarPorFecha(
+    ordenes.filter(o => ordenIdsConMov.has(o.id) && o.metros_despachados != null)
+  );
+
+  if (!lista.length) {
+    toast(`Sin movimientos con metros despachados el ${fecha}`, 'warn');
+    return;
+  }
+
+  const filas = lista.map(o => {
+    const desp = parseFloat(o.metros_despachados);
+    const dev  = parseFloat(o.metros_devueltos);
+    // Movimientos concretos de ESE día para esta OF (para trazabilidad).
+   /* const movs = eventos
+      .filter(e => e.orden_id === o.id && fechaLocalISO(e.creado_en) === fecha)
+      .sort((a,b) => new Date(a.creado_en) - new Date(b.creado_en))
+      .map(e => `${fmtHora(e.creado_en)} ${SUBAREAS[e.subarea]?.label || e.subarea}: ${e.estado}`)
+      .join(' | ');*/
+    return {
+      'OF':                 o.of,
+      'COLOR':              o.color,
+      'N° REQ./ PED.':      o.nro_req,
+      'ARTICULO':           o.articulo || '',
+      'MODELO':             o.modelo || '',
+      'T_PRENDA':           o.tipo_prenda || '',
+      'CANAL':              o.canal || '',
+      'APT TARGET':         o.apt_target || '',
+      'FECHA PROGRAMADA':   o.fecha_programada || '',
+      'CORTE PROYECTADO':   o.corte_proyectado ?? '',
+      'CORTE REAL':         o.corte_real ?? '',
+      'METRAJE SOBRANTE':   o.metraje_sobrante ?? '',
+      'METROS DESPACHADOS': o.metros_despachados ?? '',
+      'METROS DEVUELTOS':   o.metros_devueltos ?? '',
+      'METROS USADOS':      +(((isNaN(desp) ? 0 : desp) - (isNaN(dev) ? 0 : dev)).toFixed(2)),
+      'AVANCE %':           calcProgress(o),
+      //'MOVIMIENTOS DEL DÍA': movs,
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(filas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+  XLSX.writeFile(wb, `samitex_movimientos_${fecha}.xlsx`);
+  toast(`Excel descargado — ${lista.length} órdenes con movimiento el ${fecha}`, 'ok');
 }
 
 // ─── USUARIOS (admin) ───────────────────────────────────────
@@ -1121,6 +1610,10 @@ function fmtFecha(ts) {
   if (!ts) return '—';
   return new Date(ts).toLocaleDateString('es-PE',{day:'2-digit',month:'short'});
 }
+function fmtHora(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+}
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 function emptyHTML(icon, text, sub) {
   return `<div class="empty"><div class="empty-icon">${icon}</div><div class="empty-text">${text}</div>${sub?`<div class="empty-sub">${sub}</div>`:''}</div>`;
@@ -1143,3 +1636,12 @@ function setSyncBar(state) {
 document.getElementById('loginPin')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
 });
+
+// Fecha indicador del reporte Excel: por defecto hoy (modificable).
+['excelFechaIng','excelFechaGer'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el && !el.value) el.value = hoyISO();
+});
+
+// Si hay una sesión guardada (login previo), entra directo sin pedir PIN de nuevo.
+restaurarSesion();
