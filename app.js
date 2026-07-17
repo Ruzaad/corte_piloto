@@ -1,8 +1,3 @@
-// ════════════════════════════════════════════════════════════
-// SAMITEX PLANTA — app.js
-// ════════════════════════════════════════════════════════════
-
-// ─── CONFIG ─────────────────────────────────────────────────
 const SUPA_URL = 'https://mzvucelrdkzomyaepirh.supabase.co';
 const SUPA_KEY = 'sb_publishable_OHxWYKu13BrSs2X-Yc9Agw_yxJ-HnnV';
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
@@ -13,8 +8,6 @@ const DIAS_RECORDATORIO_PIN = 30;
 const SUBAREAS = {
   almacen_telas:      { label: 'Almacén Telas',      estados: ['ENTREGADO','FALTA NOTA DE ENTREGA','HABILITANDO'] },
   corte_planta:       { label: 'Corte Planta',        estados: ['EN PROCESO','ENTREGADO'] },
-  // Devolución de tela a almacén: es un movimiento OPCIONAL (no todas las
-  // órdenes devuelven tela), por eso no cuenta para el % de avance.
   corte_devolucion:   { label: 'Corte Devolución',    estados: ['DEVOLUCIÓN A ALMACÉN'], opcional: true },
   calidad_corte:      { label: 'Calidad Corte',       estados: ['APROBADO','RECHAZADO'] },
   corte_complem:      { label: 'Corte Complem.',      estados: ['ENTREGADO A CALIDAD','ENTREGADO A PCP','FALTA RIBETE','FALTA PRETINA','FALTA RIBETE Y PRETINA'] },
@@ -82,14 +75,6 @@ function toggleTheme() {
 }
 initTheme();
 
-// ─── LOGIN: usuario como texto libre (sin dropdown) ─────────
-// No se precarga ninguna lista; el usuario escribe su nombre.
-
-// ─── SESIÓN PERSISTENTE ──────────────────────────────────────
-// login_usuario() es una función propia (no Supabase Auth), así que el
-// cliente de Supabase nunca guarda un JWT/sesión por su cuenta: `session`
-// vivía solo en una variable de JS y se perdía con cada F5. La solución
-// no pasa por "separar vistas"; hay que persistirla nosotros mismos.
 const SESSION_KEY = 'smx_session';
 
 function guardarSesion() {
@@ -106,8 +91,6 @@ async function restaurarSesion() {
   try { saved = JSON.parse(raw); } catch { borrarSesionGuardada(); return; }
   if (!saved?.id) { borrarSesionGuardada(); return; }
 
-  // Revalidar contra el servidor: si el usuario fue desactivado o cambió
-  // de área desde el último login, no confiamos ciegamente en lo local.
   const { data, error } = await sb.from('usuarios_login').select('*').eq('id', saved.id).maybeSingle();
   if (error || !data) { borrarSesionGuardada(); return; }
 
@@ -221,13 +204,6 @@ function setFilter(val, el, groupId) {
   if (groupId === 'chipsHist')       { filterHist  = val; renderHist(); }
   if (groupId === 'chipsUsers')      { filterUsers = val; renderUsers(); }
 }
-
-// ─── HELPERS DE ESTADO ──────────────────────────────────────
-// Eventos "auxiliares": registran información adicional (p.ej. el corte
-// real) bajo la MISMA subárea, pero no representan un cambio de estado.
-// Deben quedar en el historial, pero nunca deben ser considerados el
-// "estado actual" de la subárea, o el flujo se ve como incompleto aunque
-// ya se haya marcado ENTREGADO.
 function esEventoAuxiliar(estado) {
   return typeof estado === 'string' && (
     estado.startsWith('CORTE REAL REGISTRADO') ||
@@ -252,9 +228,6 @@ function isFinal(estado) {
     || estado === 'ENTREGADO A CALIDAD' || estado === 'ENTREGADO A PCP';
 }
 
-// keys opcional: permite calcular el progreso solo sobre las subáreas
-// de un área madre (almacén/corte/calidad), en vez del flujo completo.
-// Las subáreas marcadas `opcional` (p.ej. Corte Devolución) no cuentan.
 function calcProgress(orden, keys) {
   const ks = (keys || Object.keys(SUBAREAS)).filter(k => !SUBAREAS[k]?.opcional);
   const done = ks.filter(k => isFinal(estadoActual(orden,k)?.estado)).length;
@@ -271,11 +244,6 @@ function matchesSearch(o, term) {
   return [o.of, o.color, o.nro_req, o.articulo].some(v => v && String(v).toLowerCase().includes(t));
 }
 
-// ─── FECHAS: parseo, orden y alertas ────────────────────────
-// La FECHA de entrega (fecha_programada) es la que manda el orden y las
-// alertas. apt_target es un dato aparte que también se muestra.
-// Ambos campos llegan en formatos mezclados: '2026-08-07 00:00:00'
-// (migración) o '7/09/2026' (digitado d/m/yyyy).
 function parseFechaFlex(v) {
   if (!v) return null;
   const s = String(v).trim();
@@ -315,8 +283,6 @@ function alertaPorFecha(orden) {
   return dias <= 7 && calcProgress(orden) < 100;
 }
 
-// Badge de FECHA (entrega) para las tarjetas: rojo = vencida o ≤7 días,
-// amarillo = ≤14 días, gris = con holgura o ya completada.
 function fechaBadgeHTML(o) {
   if (!o.fecha_programada) return '';
   const d = fechaProg(o);
@@ -355,11 +321,6 @@ function estaBloqueada(orden) {
   });
 }
 
-// Color exacto por estado (definido por Ingeniería/Gerencia):
-//  Almacén: FALTA NOTA DE ENTREGA=rojo · HABILITANDO=azul · ENTREGADO=verde
-//  Corte:   EN PROCESO=azul · ENTREGADO=verde · ENTREGADO A CALIDAD=verde
-//           ENTREGADO A PCP=amarillo · FALTA RIBETE/PRETINA/RIBETE Y PRETINA=rojo
-//  Calidad: APROBADO=verde · RECHAZADO=rojo (FALTANTE se trata igual que RECHAZADO)
 const ESTADO_COLOR = {
   'FALTA NOTA DE ENTREGA':   'red',
   'HABILITANDO':             'blue',
@@ -1025,9 +986,6 @@ function abrirIngDetalle(id, returnScreen) {
   showScreen('scIngDetalle');
 }
 
-// Ingeniería puede editar el estado de CUALQUIER subárea desde aquí.
-// El estado actual siempre se resalta en verde para dejar claro qué
-// se está sobrescribiendo.
 function renderIngDetalleBody() {
   const o = ingOrdenDetalle;
   const html = Object.entries(SUBAREAS).map(([key, sub]) => {
@@ -1295,8 +1253,6 @@ function renderSeg() {
   el.innerHTML = lista.map(o => segCardHTML(o)).join('');
 }
 
-// Tarjeta compacta: para no saturar la vista solo se muestran la FECHA/APT
-// y los estados problemáticos (rojos/amarillos); el resto se resume en el %.
 function segCardHTML(o) {
   const pct = calcProgress(o);
   const problemas = Object.keys(SUBAREAS).map(key => {
@@ -1374,11 +1330,6 @@ function renderGerencia() {
   document.getElementById('gerTodas').innerHTML      = activas.length    ? activas.map(segCardHTML).join('')    : emptyHTML('📦','Sin resultados','');
 }
 
-// ─── EXPORTAR EXCEL (ingeniería / gerencia) ─────────────────
-// Reporte de MOVIMIENTOS del día seleccionado: incluye toda OF que haya
-// tenido al menos un evento (creado_en) en esa fecha, SIEMPRE que Almacén
-// Telas ya le haya registrado sus metros despachados. Muestra los datos de
-// la OF + metros despachados, devueltos y el cálculo de metros usados.
 function hoyISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1413,12 +1364,7 @@ function descargarExcel(idFecha) {
   const filas = lista.map(o => {
     const desp = parseFloat(o.metros_despachados);
     const dev  = parseFloat(o.metros_devueltos);
-    // Movimientos concretos de ESE día para esta OF (para trazabilidad).
-   /* const movs = eventos
-      .filter(e => e.orden_id === o.id && fechaLocalISO(e.creado_en) === fecha)
-      .sort((a,b) => new Date(a.creado_en) - new Date(b.creado_en))
-      .map(e => `${fmtHora(e.creado_en)} ${SUBAREAS[e.subarea]?.label || e.subarea}: ${e.estado}`)
-      .join(' | ');*/
+
     return {
       'OF':                 o.of,
       'COLOR':              o.color,
